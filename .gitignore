@@ -1,0 +1,65 @@
+# وابستگی‌های Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# فایل‌های متغیر محیطی
+.env
+.env.local
+.env.*.local
+
+# فایل‌های Hardhat
+/cache
+/artifacts
+
+# فایل‌های TypeChain
+/typechain
+/typechain-types
+
+# فایل‌های solidity-coverage
+/coverage
+/coverage.json
+
+# فولدر پیش‌فرض Hardhat Ignition برای دیپلوی روی نود محلی
+ignition/deployments/chain-31337
+
+# فایل‌های سیستمی macOS
+.DS_Store
+
+# فایل‌های سیستمی Windows
+Thumbs.db
+
+# لاگ‌ها
+*.log
+*.log.*
+
+# فایل‌های مربوط به IDEها
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+.vscode/
+
+# فایل‌های مربوط به Debug و پروفایل
+*.swp
+*.swo
+*.log
+*.bak
+*.tmp
+__MACOSX/
+
+# خروجی‌های بیلد
+/dist
+/out
+
+# فایل‌های متفرقه
+*.env.backup
+*.test.ts.snap
+*.temp
+__pycache__/
+*.tsbuildinfo
+
+# فایل‌های مرتبط با Ethereum
+/.openzeppelin
