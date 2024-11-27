@@ -64,17 +64,31 @@ contract TimeLockedNFT is
     event UnlockTimeUpdated(uint256 indexed tokenId, uint256 newUnlockTime);
 
     constructor() ERC721("TimeLockedNFT", "TLNFT") {
-        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _setupRole(MINTER_ROLE, msg.sender);
-        
-        // Define predefined NFTs
-        predefinedNFTs[0] = NFTMetadata("Future Memory #1", "A digital time capsule for your memories", "ipfs://memory1", "memory", "");
-        predefinedNFTs[1] = NFTMetadata("Love Letter #1", "Send a love letter to the future", "ipfs://love1", "letter", "");
-        predefinedNFTs[2] = NFTMetadata("Birthday Surprise #1", "Schedule a birthday surprise", "ipfs://birthday1", "surprise", "");
-        predefinedNFTs[3] = NFTMetadata("Achievement Unlock #1", "Set future goals and celebrate", "ipfs://achievement1", "goal", "");
-        predefinedNFTs[4] = NFTMetadata("Time Crystal #1", "Store your thoughts in time", "ipfs://crystal1", "crystal", "");
-        // ... continue defining NFTs 5 to 19
-    }
+    _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    _setupRole(MINTER_ROLE, msg.sender);
+    
+    // Define 20 predefined NFTs
+    predefinedNFTs[0] = NFTMetadata("Future Memory #1", "A digital time capsule for your memories", "ipfs://memory1", "memory", "");
+    predefinedNFTs[1] = NFTMetadata("Love Letter #1", "Send a love letter to the future", "ipfs://love1", "letter", "");
+    predefinedNFTs[2] = NFTMetadata("Birthday Surprise #1", "Schedule a birthday surprise", "ipfs://birthday1", "surprise", "");
+    predefinedNFTs[3] = NFTMetadata("Achievement Unlock #1", "Set future goals and celebrate", "ipfs://achievement1", "goal", "");
+    predefinedNFTs[4] = NFTMetadata("Time Crystal #1", "Store your thoughts in time", "ipfs://crystal1", "crystal", "");
+    predefinedNFTs[5] = NFTMetadata("Future Gift #1", "Schedule a special gift reveal", "ipfs://gift1", "gift", "");
+    predefinedNFTs[6] = NFTMetadata("Graduation Message #1", "A message for graduation day", "ipfs://grad1", "message", "");
+    predefinedNFTs[7] = NFTMetadata("Wedding Wishes #1", "Future wedding congratulations", "ipfs://wedding1", "wish", "");
+    predefinedNFTs[8] = NFTMetadata("New Year Resolution #1", "Lock your yearly goals", "ipfs://newyear1", "resolution", "");
+    predefinedNFTs[9] = NFTMetadata("Time Capsule #1", "Create a digital time capsule", "ipfs://capsule1", "capsule", "");
+    predefinedNFTs[10] = NFTMetadata("Anniversary Note #1", "Future anniversary surprise", "ipfs://anniversary1", "note", "");
+    predefinedNFTs[11] = NFTMetadata("Dream Board #1", "Visualize your future dreams", "ipfs://dream1", "dream", "");
+    predefinedNFTs[12] = NFTMetadata("Secret Message #1", "Hide a secret for the future", "ipfs://secret1", "secret", "");
+    predefinedNFTs[13] = NFTMetadata("Future Advice #1", "Write advice to your future self", "ipfs://advice1", "advice", "");
+    predefinedNFTs[14] = NFTMetadata("Memory Box #1", "Store precious memories", "ipfs://box1", "memory", "");
+    predefinedNFTs[15] = NFTMetadata("Future Discovery #1", "Hide a surprise discovery", "ipfs://discovery1", "discovery", "");
+    predefinedNFTs[16] = NFTMetadata("Time Letter #1", "Write to your future self", "ipfs://letter1", "letter", "");
+    predefinedNFTs[17] = NFTMetadata("Milestone Message #1", "Celebrate future milestones", "ipfs://milestone1", "milestone", "");
+    predefinedNFTs[18] = NFTMetadata("Future Reflection #1", "Share thoughts with future you", "ipfs://reflection1", "reflection", "");
+    predefinedNFTs[19] = NFTMetadata("Time Treasure #1", "Lock a digital treasure", "ipfs://treasure1", "treasure", "");
+}
 
     /**
      * @dev Create a new NFT
