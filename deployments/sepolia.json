@@ -1,0 +1,12 @@
+{
+  "TimeLockedNFT": {
+    "address": "0x05377369C8C6C7cbd5598f1052789116b99D0C0C",
+    "deployer": "0x0B8b6B610e0D5902F0bca6B5a2Da3dc7fb0b2c30",
+    "deploymentTime": "2024-11-30T15:30:15.416Z",
+    "transactionHash": "0xa259c48572780021db0bea89e6201b107ce84342e97bd10b82bb994acf84d11f",
+    "constructorArguments": [],
+    "network": {
+      "name": "sepolia"
+    }
+  }
+}

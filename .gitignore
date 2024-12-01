@@ -8,10 +8,16 @@ yarn-error.log*
 .env
 .env.local
 .env.*.local
+.env.development
+.env.test
+.env.production
 
 # فایل‌های Hardhat
 /cache
 /artifacts
+/cache-zk
+/broadcast
+/broadcast-logs
 
 # فایل‌های TypeChain
 /typechain
@@ -23,16 +29,22 @@ yarn-error.log*
 
 # فولدر پیش‌فرض Hardhat Ignition برای دیپلوی روی نود محلی
 ignition/deployments/chain-31337
+/deployments/localhost
 
 # فایل‌های سیستمی macOS
 .DS_Store
+.AppleDouble
+.LSOverride
 
 # فایل‌های سیستمی Windows
 Thumbs.db
+ehthumbs.db
+Desktop.ini
 
 # لاگ‌ها
 *.log
 *.log.*
+logs/
 
 # فایل‌های مربوط به IDEها
 .idea/
@@ -41,6 +53,7 @@ Thumbs.db
 *.njsproj
 *.sln
 .vscode/
+*.sw?
 
 # فایل‌های مربوط به Debug و پروفایل
 *.swp
@@ -53,6 +66,9 @@ __MACOSX/
 # خروجی‌های بیلد
 /dist
 /out
+/build
+frontend/build/
+.next/
 
 # فایل‌های متفرقه
 *.env.backup
@@ -60,6 +76,26 @@ __MACOSX/
 *.temp
 __pycache__/
 *.tsbuildinfo
+.DS_Store
+*.pem
 
 # فایل‌های مرتبط با Ethereum
 /.openzeppelin
+.secret
+keys.json
+mnemonic.txt
+private-keys.txt
+account-keys.json
+
+# فایل‌های مربوط به Gas Reporter
+gas-report.txt
+gasReporterOutput.json
+
+# فایل‌های کش مرورگر
+.cache/
+.parcel-cache/
+
+# سایر فایل‌های خاص پروژه
+coverage/
+coverage.json
+bin/

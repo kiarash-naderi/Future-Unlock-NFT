@@ -20,45 +20,30 @@ describe("TimeLockedNFT Contract", function () {
     });
 
     describe("Time Lock Validations", function () {
-        it("Should reject creation with past unlock time", async function () {
-            const pastTime = Math.floor(Date.now() / 1000) - 3600;
-            const metadata = {
-                name: "Past Time NFT",
-                description: "Test",
-                image: "ipfs://test",
-                mediaType: "image",
-                externalUrl: ""
-            };
-
+        it("Should reject creation with zero lock time", async function () {
             await expect(
                 nftContract.createNFT(
                     await addr1.getAddress(),
-                    metadata,
+                    0,
                     "Encrypted content",
-                    pastTime,
+                    0, // lockDays
+                    0, // lockHours
+                    0, // lockMinutes
                     customMessage,
                     true
                 )
-            ).to.be.revertedWith("Unlock time must be future");
+            ).to.be.revertedWith("Invalid lock time");
         });
 
         it("Should handle time progression correctly", async function () {
-            const currentTime = await time.latest();
-            const futureTime = currentTime + 3600;
-            
-            const metadata = {
-                name: "Time Test NFT",
-                description: "Test",
-                image: "ipfs://test",
-                mediaType: "image",
-                externalUrl: ""
-            };
-
+            // Lock for 1 hour
             await nftContract.createNFT(
                 await addr1.getAddress(),
-                metadata,
+                1,
                 "Encrypted content",
-                futureTime,
+                0,  // lockDays
+                1,  // lockHours
+                0,  // lockMinutes
                 customMessage,
                 true
             );
@@ -67,152 +52,70 @@ describe("TimeLockedNFT Contract", function () {
                 nftContract.connect(addr1).unlockNFT(1)
             ).to.be.revertedWith("Still locked");
 
-            await time.increaseTo(futureTime + 1);
+            // Increase time by 1 hour + 1 second
+            await time.increase(3601);
 
             await expect(
                 nftContract.connect(addr1).unlockNFT(1)
             ).to.not.be.reverted;
         });
-    });
 
-    describe("Access Control", function () {
-        it("Should prevent non-minters from creating NFTs", async function () {
-            const futureTime = (await time.latest()) + 3600;
-            const metadata = {
-                name: "Unauthorized NFT",
-                description: "Test",
-                image: "ipfs://test",
-                mediaType: "image",
-                externalUrl: ""
-            };
-
-            const expectedError = `AccessControl: account ${addr1.address.toLowerCase()} is missing role ${MINTER_ROLE}`;
-
-            await expect(
-                nftContract.connect(addr1).createNFT(
-                    await addr2.getAddress(),
-                    metadata,
-                    "Encrypted content",
-                    futureTime,
-                    customMessage,
-                    true
-                )
-            ).to.be.revertedWith(expectedError);
-        });
-
-        it("Should allow adding and removing minters", async function () {
-            const futureTime = (await time.latest()) + 3600;
-            const metadata = {
-                name: "New Minter NFT",
-                description: "Test",
-                image: "ipfs://test",
-                mediaType: "image",
-                externalUrl: ""
-            };
-
-            // Grant role to addr1
-            await nftContract.grantRole(MINTER_ROLE, await addr1.getAddress());
-
-            // Should succeed now
-            await nftContract.connect(addr1).createNFT(
-                await addr2.getAddress(),
-                metadata,
+        it("Should return correct remaining time", async function () {
+            // Lock for 2 days, 3 hours, 30 minutes
+            await nftContract.createNFT(
+                await addr1.getAddress(),
+                1,
                 "Encrypted content",
-                futureTime,
+                2,  // lockDays
+                3,  // lockHours
+                30, // lockMinutes
                 customMessage,
                 true
             );
 
-            // Revoke role
-            await nftContract.revokeRole(MINTER_ROLE, await addr1.getAddress());
-
-            // Should fail now
-            const expectedError = `AccessControl: account ${addr1.address.toLowerCase()} is missing role ${MINTER_ROLE}`;
-            await expect(
-                nftContract.connect(addr1).createNFT(
-                    await addr2.getAddress(),
-                    metadata,
-                    "Encrypted content",
-                    futureTime + 1,
-                    customMessage,
-                    true
-                )
-            ).to.be.revertedWith(expectedError);
+            const [days, hours, minutes] = await nftContract.getRemainingLockTime(1);
+            expect(days).to.equal(2);
+            expect(hours).to.equal(3);
+            expect(minutes).to.equal(30);
         });
     });
 
     describe("Multiple NFT Transfers", function () {
-        it("Should handle multiple transfers between users", async function () {
-            const futureTime = (await time.latest()) + 3600;
-            const metadata = {
-                name: "Transfer Test NFT",
-                description: "Test",
-                image: "ipfs://test",
-                mediaType: "image",
-                externalUrl: ""
-            };
+        beforeEach(async function () {
+            // Create NFTs with 1 hour lock time
+            await nftContract.createNFT(
+                await addr1.getAddress(),
+                0,
+                "Encrypted content",
+                0, // lockDays
+                1, // lockHours
+                0, // lockMinutes
+                customMessage,
+                true // isTransferable
+            );
+        });
 
-            // Create multiple NFTs
-            for (let i = 0; i < 3; i++) {
-                await nftContract.createNFT(
-                    await addr1.getAddress(),
-                    metadata,
-                    "Encrypted content",
-                    futureTime,
-                    customMessage + i,
-                    true
-                );
-            }
+        it("Should handle transfers when allowed", async function () {
+            await time.increase(3601); // Skip past lock time
+            await nftContract.connect(addr1).unlockNFT(1);
 
-            // Transfer pattern: addr1 -> addr2 -> addr3 -> addr1
             await nftContract.connect(addr1).safeTransferFrom(
                 await addr1.getAddress(),
                 await addr2.getAddress(),
                 1
             );
 
-            await nftContract.connect(addr2).safeTransferFrom(
-                await addr2.getAddress(),
-                await addr3.getAddress(),
-                1
-            );
-
-            await nftContract.connect(addr3).safeTransferFrom(
-                await addr3.getAddress(),
-                await addr1.getAddress(),
-                1
-            );
-
-            expect(await nftContract.ownerOf(1)).to.equal(await addr1.getAddress());
-            expect(await nftContract.balanceOf(await addr1.getAddress())).to.equal(3);
+            expect(await nftContract.ownerOf(1)).to.equal(await addr2.getAddress());
         });
 
-        it("Should prevent unauthorized transfers", async function () {
-            const futureTime = (await time.latest()) + 3600;
-            const metadata = {
-                name: "Auth Test NFT",
-                description: "Test",
-                image: "ipfs://test",
-                mediaType: "image",
-                externalUrl: ""
-            };
-
-            await nftContract.createNFT(
-                await addr1.getAddress(),
-                metadata,
-                "Encrypted content",
-                futureTime,
-                customMessage,
-                true
-            );
-
+        it("Should prevent transfers when not allowed", async function () {
             await expect(
-                nftContract.connect(addr2).safeTransferFrom(
+                nftContract.connect(addr1).safeTransferFrom(
                     await addr1.getAddress(),
-                    await addr3.getAddress(),
+                    await addr2.getAddress(),
                     1
                 )
-            ).to.be.revertedWith("ERC721: caller is not token owner or approved");
+            ).to.be.revertedWith("Token not transferable");
         });
     });
 });

@@ -1,3 +1,4 @@
+// scripts/mintNFT.js
 const hre = require("hardhat");
 const { getDeployedContract, encryptContent } = require("./utils");
 
@@ -7,49 +8,56 @@ async function main() {
         const contract = await getDeployedContract("TimeLockedNFT");
         const [creator] = await hre.ethers.getSigners();
 
-        // Input parameters from environment
-        const predefinedIndex = process.env.NFT_INDEX || 0;  // Selected NFT index (0-19)
-        const content = process.env.CONTENT || "This is the secret content";  // Encrypted content
-        const unlockDays = process.env.UNLOCK_DAYS || 7;  // Number of lock days
-        const customMessage = process.env.MESSAGE || "Your special message will be revealed soon!";  // Display message
-        const isTransferable = process.env.TRANSFERABLE === "true";  // Transferability
-
-        // Encrypt content
-        const encryptedContent = await encryptContent(content);
+        // تنظیم پارامترهای NFT
+        const predefinedIndex = 0; // استفاده از اولین قالب پیش‌فرض
+        const originalContent = "This is the secret content that will be revealed later";
+        const encryptedContent = await encryptContent(originalContent);
         
-        // Calculate unlock time
-        const unlockTime = Math.floor(Date.now() / 1000) + (unlockDays * 24 * 60 * 60);
+        // تنظیم زمان قفل: 7 روز، 0 ساعت، 0 دقیقه
+        const lockDays = 7;
+        const lockHours = 0;
+        const lockMinutes = 0;
+        
+        const customMessage = "Your special message will be revealed in 7 days!";
 
-        console.log("\nCreating NFT with following parameters:");
-        console.log(`Template Index: ${predefinedIndex}`);
-        console.log(`Unlock Time: ${new Date(unlockTime * 1000).toLocaleString()}`);
-        console.log(`Custom Message: ${customMessage}`);
-        console.log(`Transferable: ${isTransferable}`);
+        console.log("Creating time-locked NFT...");
+        console.log(`Lock Time: ${lockDays} days, ${lockHours} hours, ${lockMinutes} minutes`);
 
-        // Create NFT
         const tx = await contract.createNFT(
-            await creator.getAddress(),  // Recipient
-            predefinedIndex,             // Default NFT index
-            encryptedContent,            // Encrypted content
-            unlockTime,                  // Unlock time
-            customMessage,               // Display message
-            isTransferable               // Transferability
+            await creator.getAddress(),
+            predefinedIndex,
+            encryptedContent,
+            lockDays,
+            lockHours,
+            lockMinutes,
+            customMessage,
+            true // isTransferable
         );
 
-        console.log("\nTransaction sent. Waiting for confirmation...");
+        // Wait for confirmation
         const receipt = await tx.wait();
-
-        // Check NFT creation event
         const event = receipt.logs.find(
             log => contract.interface.parseLog(log).name === 'NFTCreated'
         );
 
         if (event) {
-            const tokenId = event.args[0];
+            const parsedEvent = contract.interface.parseLog(event);
+            const tokenId = parsedEvent.args[0];
+            const unlockTime = parsedEvent.args[2];
+            
             console.log(`\nNFT created successfully!`);
             console.log(`Token ID: ${tokenId}`);
-            console.log(`Unlock Time: ${new Date(unlockTime * 1000).toLocaleString()}`);
+            console.log(`Unlock Time: ${new Date(Number(unlockTime) * 1000).toLocaleString()}`);
             console.log(`Transaction Hash: ${receipt.hash}`);
+
+            // Get remaining time
+            const [remainingDays, remainingHours, remainingMinutes] = 
+                await contract.getRemainingLockTime(tokenId);
+            
+            console.log("\nRemaining Lock Time:");
+            console.log(`Days: ${remainingDays}`);
+            console.log(`Hours: ${remainingHours}`);
+            console.log(`Minutes: ${remainingMinutes}`);
         }
 
     } catch (error) {
@@ -58,9 +66,7 @@ async function main() {
     }
 }
 
-if (require.main === module) {
-    main().catch((error) => {
-        console.error(error);
-        process.exitCode = 1;
-    });
-}
+main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+});
