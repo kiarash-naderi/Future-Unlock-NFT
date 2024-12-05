@@ -5,276 +5,319 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
-import "./libraries/Utils.sol";
 
 /**
- * @title TimeLockedNFT
- * @dev NFT با قابلیت قفل زمانی و محتوای رمزگذاری شده
- * @notice این قرارداد بهینه‌سازی شده برای جلوگیری از خطای Stack too deep
+ * @title Enhanced TimeLockedNFT
+ * @dev Advanced NFT contract with precise time-lock mechanism and comprehensive metadata management
+ * @notice This contract supports days, hours, and minutes for time locks
  */
 contract TimeLockedNFT is 
     ERC721, 
     ERC721URIStorage, 
     ERC721Enumerable, 
-    ReentrancyGuard, 
+    ReentrancyGuard,
+    Pausable,
     AccessControl 
 {
-    using Utils for uint256;
     using Counters for Counters.Counter;
     using Strings for uint256;
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-    Counters.Counter private _tokenIds;
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    
+    Counters.Counter private _tokenIdCounter;
 
-    struct NFTMetadata {
-        string name;           // نام NFT
-        string description;    // توضیحات
-        string image;         // آدرس تصویر
-        string mediaType;     // نوع محتوا (تصویر، ویدیو، متن)
-        string externalUrl;   // لینک خارجی (اختیاری)
-    }
-
-    struct NFTContent {
-        string encryptedContent;    // محتوای رمزگذاری شده
-        uint256 unlockTime;         // زمان باز شدن قفل
-        bool isUnlocked;            // وضعیت قفل
-        string customMessage;       // پیام شخصی
-        bool isTransferable;        // قابلیت انتقال
-        address creator;            // سازنده NFT
-    }
-
-    struct LockTimeConfig {
+    uint256 private constant SECONDS_PER_MINUTE = 60;
+    uint256 private constant SECONDS_PER_HOUR = 3600;
+    uint256 private constant SECONDS_PER_DAY = 86400;
+    
+    struct LockTime {
         uint256 lockDays;
         uint256 lockHours;
         uint256 lockMinutes;
-        uint256 totalSeconds;
+        uint256 unlockTimestamp;
     }
 
-    // NFT های پیش‌فرض
-    NFTMetadata[20] private _predefinedNFTs;
+    struct NFTMetadata {
+        string content;          // Encrypted content/message
+        string title;           // NFT title
+        string description;     // NFT description
+        string metadataURI;     // IPFS metadata URI
+        uint256 templateId;     // Frontend template reference
+        string mediaType;       // Type of content
+    }
+
+    struct NFTStatus {
+        bool isUnlocked;        // Lock status
+        bool isTransferable;    // Transfer permission
+        address creator;        // NFT creator
+        uint256 createdAt;      // Creation timestamp
+        bool isEncrypted;       // Content encryption status
+    }
     
-    // نگاشت tokenId به اطلاعات و محتوا
-    mapping(uint256 => NFTMetadata) private _tokenMetadata;
-    mapping(uint256 => NFTContent) private _tokenContent;
-    mapping(uint256 => LockTimeConfig) private _tokenLockConfig;
+    // Core Storage
+    mapping(uint256 => NFTMetadata) private _metadata;
+    mapping(uint256 => NFTStatus) private _status;
+    mapping(uint256 => LockTime) private _lockTimes;
+    mapping(uint256 => bool) private _validTemplateIds;
+    mapping(address => uint256[]) private _userNFTs;
     
-    // رویدادها
-    event NFTCreated(uint256 indexed tokenId, address indexed creator, uint256 unlockTime, string mediaType);
+    // Events
+    event NFTMinted(
+        uint256 indexed tokenId, 
+        address indexed creator, 
+        uint256 unlockTime, 
+        uint256 templateId,
+        string mediaType
+    );
     event NFTUnlocked(uint256 indexed tokenId, address indexed owner);
+    event MetadataUpdated(uint256 indexed tokenId, string newURI);
+    event LockTimeExtended(uint256 indexed tokenId, uint256 newUnlockTime);
     event ContentUpdated(uint256 indexed tokenId);
-    event UnlockTimeUpdated(uint256 indexed tokenId, uint256 newUnlockTime);
+    event TransferabilityUpdated(uint256 indexed tokenId, bool isTransferable);
 
     constructor() ERC721("TimeLockedNFT", "TLNFT") {
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _setupRole(ADMIN_ROLE, msg.sender);
         _setupRole(MINTER_ROLE, msg.sender);
-        _initializePredefinedNFTs();
+        
+        // Initialize valid template IDs (0-19)
+        for(uint256 i = 0; i < 20; i++) {
+            _validTemplateIds[i] = true;
+        }
     }
 
     /**
-     * @dev مقداردهی اولیه NFT های پیش‌فرض
-     * @notice جدا کردن مقداردهی‌های پیش‌فرض برای بهینه‌سازی گس
+     * @dev Creates a new time-locked NFT with precise lock duration
+     * @param recipient The NFT recipient address
+     * @param content Encrypted content or message
+     * @param lockDays Number of days to lock
+     * @param lockHours Number of hours to lock
+     * @param lockMinutes Number of minutes to lock
+     * @param templateId Frontend template ID
+     * @param metadataURI IPFS metadata URI
+     * @param title NFT title
+     * @param description NFT description
+     * @param mediaType Content type
+     * @param isTransferable Whether NFT can be transferred after unlock
+     * @param isEncrypted Whether content is encrypted
      */
-    function _initializePredefinedNFTs() private {
-        _predefinedNFTs[0] = NFTMetadata("Future Memory #1", "A digital time capsule for your memories", "ipfs://memory1", "memory", "");
-        _predefinedNFTs[1] = NFTMetadata("Love Letter #1", "Send a love letter to the future", "ipfs://love1", "letter", "");
-        _predefinedNFTs[2] = NFTMetadata("Birthday Surprise #1", "Schedule a birthday surprise", "ipfs://birthday1", "surprise", "");
-        _predefinedNFTs[3] = NFTMetadata("Achievement Unlock #1", "Set future goals and celebrate", "ipfs://achievement1", "goal", "");
-        _predefinedNFTs[4] = NFTMetadata("Time Crystal #1", "Store your thoughts in time", "ipfs://crystal1", "crystal", "");
-        _predefinedNFTs[5] = NFTMetadata("Future Memory #2", "A digital time capsule for your memories", "ipfs://memory2", "memory", "");
-        _predefinedNFTs[6] = NFTMetadata("Love Letter #2", "Send a love letter to the future", "ipfs://love2", "letter", "");
-        _predefinedNFTs[7] = NFTMetadata("Birthday Surprise #2", "Schedule a birthday surprise", "ipfs://birthday2", "surprise", "");
-        _predefinedNFTs[8] = NFTMetadata("Achievement Unlock #2", "Set future goals and celebrate", "ipfs://achievement2", "goal", "");
-        _predefinedNFTs[9] = NFTMetadata("Time Crystal #2", "Store your thoughts in time", "ipfs://crystal2", "crystal", "");
-        _predefinedNFTs[10] = NFTMetadata("Future Memory #3", "A digital time capsule for your memories", "ipfs://memory3", "memory", "");
-        _predefinedNFTs[11] = NFTMetadata("Love Letter #3", "Send a love letter to the future", "ipfs://love3", "letter", "");
-        _predefinedNFTs[12] = NFTMetadata("Birthday Surprise #3", "Schedule a birthday surprise", "ipfs://birthday3", "surprise", "");
-        _predefinedNFTs[13] = NFTMetadata("Achievement Unlock #3", "Set future goals and celebrate", "ipfs://achievement3", "goal", "");
-        _predefinedNFTs[14] = NFTMetadata("Time Crystal #3", "Store your thoughts in time", "ipfs://crystal3", "crystal", "");
-        _predefinedNFTs[15] = NFTMetadata("Future Memory #4", "A digital time capsule for your memories", "ipfs://memory4", "memory", "");
-        _predefinedNFTs[16] = NFTMetadata("Love Letter #4", "Send a love letter to the future", "ipfs://love4", "letter", "");
-        _predefinedNFTs[17] = NFTMetadata("Birthday Surprise #4", "Schedule a birthday surprise", "ipfs://birthday4", "surprise", "");
-        _predefinedNFTs[18] = NFTMetadata("Achievement Unlock #4", "Set future goals and celebrate", "ipfs://achievement4", "goal", "");
-        _predefinedNFTs[19] = NFTMetadata("Time Crystal #4", "Store your thoughts in time", "ipfs://crystal4", "crystal", "");
-    }
-
-    /**
-     * @dev دریافت متادیتای پیش‌فرض
-     */
-    function getPredefinedNFT(uint256 index) public view returns (NFTMetadata memory) {
-        require(index < 20, "Invalid index");
-        return _predefinedNFTs[index];
-    }
-
-    /**
-     * @dev ایجاد NFT جدید با قابلیت قفل زمانی
-     * @notice بهینه‌سازی شده برای کاهش متغیرهای محلی
-     */
-    function createNFT(
+    function mintNFT(
         address recipient,
-        uint256 predefinedIndex,
-        string memory encryptedContent,
+        string memory content,
         uint256 lockDays,
         uint256 lockHours,
         uint256 lockMinutes,
-        string memory customMessage,
-        bool isTransferable
-    ) public onlyRole(MINTER_ROLE) nonReentrant returns (uint256) {
-        require(predefinedIndex < 20, "Invalid NFT template index");
+        uint256 templateId,
+        string memory metadataURI,
+        string memory title,
+        string memory description,
+        string memory mediaType,
+        bool isTransferable,
+        bool isEncrypted
+    ) 
+        external
+        whenNotPaused
+        nonReentrant
+        returns (uint256)
+    {
+        require(hasRole(MINTER_ROLE, msg.sender), "Must have minter role");
         require(recipient != address(0), "Invalid recipient");
-        require(bytes(encryptedContent).length > 0, "Content required");
+        require(bytes(content).length > 0, "Content required");
+        require(_validTemplateIds[templateId], "Invalid template");
+        require(lockDays > 0 || lockHours > 0 || lockMinutes > 0, "Lock time required");
 
-        uint256 totalLockSeconds = Utils.timeToSeconds(lockDays, lockHours, lockMinutes);
-        uint256 unlockTime = block.timestamp + totalLockSeconds;
-        require(unlockTime > block.timestamp, "Invalid lock time");
-
-        _tokenIds.increment();
-        uint256 newTokenId = _tokenIds.current();
+        uint256 unlockTimestamp = block.timestamp + 
+            (lockDays * SECONDS_PER_DAY) +
+            (lockHours * SECONDS_PER_HOUR) +
+            (lockMinutes * SECONDS_PER_MINUTE);
         
-        // Mint NFT
-        _safeMint(recipient, newTokenId);
+        _tokenIdCounter.increment();
+        uint256 newTokenId = _tokenIdCounter.current();
         
-        // Store metadata
-        NFTMetadata memory metadata = _predefinedNFTs[predefinedIndex];
-        _tokenMetadata[newTokenId] = metadata;
-
-        // Store lock configuration
-        _tokenLockConfig[newTokenId] = LockTimeConfig({
+        // Store lock time
+        _lockTimes[newTokenId] = LockTime({
             lockDays: lockDays,
             lockHours: lockHours,
             lockMinutes: lockMinutes,
-            totalSeconds: totalLockSeconds
+            unlockTimestamp: unlockTimestamp
         });
 
-        // Store content
-        _tokenContent[newTokenId] = NFTContent({
-            encryptedContent: encryptedContent,
-            unlockTime: unlockTime,
+        // Store metadata
+        _metadata[newTokenId] = NFTMetadata({
+            content: content,
+            title: title,
+            description: description,
+            metadataURI: metadataURI,
+            templateId: templateId,
+            mediaType: mediaType
+        });
+
+        // Store status
+        _status[newTokenId] = NFTStatus({
             isUnlocked: false,
-            customMessage: customMessage,
             isTransferable: isTransferable,
-            creator: msg.sender
+            creator: msg.sender,
+            createdAt: block.timestamp,
+            isEncrypted: isEncrypted
         });
 
-        // Emit event
-        emit NFTCreated(newTokenId, msg.sender, unlockTime, metadata.mediaType);
+        // Mint and track
+        _safeMint(recipient, newTokenId);
+        _setTokenURI(newTokenId, metadataURI);
+        _setUserNFT(recipient, newTokenId);
+
+        emit NFTMinted(newTokenId, msg.sender, unlockTimestamp, templateId, mediaType);
         return newTokenId;
     }
 
     /**
-     * @dev باز کردن قفل NFT
+     * @dev Unlocks NFT if time has passed
      */
-    function unlockNFT(uint256 tokenId) public returns (bool) {
+    function unlock(uint256 tokenId) external whenNotPaused {
         require(_exists(tokenId), "Token does not exist");
         require(ownerOf(tokenId) == msg.sender, "Not token owner");
-        require(!_tokenContent[tokenId].isUnlocked, "Already unlocked");
-        require(block.timestamp >= _tokenContent[tokenId].unlockTime, "Still locked");
+        
+        NFTStatus storage status = _status[tokenId];
+        LockTime storage lockTime = _lockTimes[tokenId];
 
-        _tokenContent[tokenId].isUnlocked = true;
+        require(!status.isUnlocked, "Already unlocked");
+        require(block.timestamp >= lockTime.unlockTimestamp, "Still locked");
+
+        status.isUnlocked = true;
         emit NFTUnlocked(tokenId, msg.sender);
-        return true;
     }
 
     /**
-     * @dev دریافت محتوای NFT
+     * @dev Gets complete NFT data
      */
-    function getNFTContent(uint256 tokenId) public view returns (
+    function getNFTData(uint256 tokenId) external view returns (
         string memory content,
-        string memory message,
-        bool isUnlocked
+        string memory title,
+        string memory description,
+        bool isUnlocked,
+        uint256 unlockTimestamp,
+        address creator,
+        uint256 templateId,
+        string memory mediaType,
+        bool isTransferable,
+        bool isEncrypted
     ) {
         require(_exists(tokenId), "Token does not exist");
-        require(ownerOf(tokenId) == msg.sender, "Not token owner");
+        require(ownerOf(tokenId) == msg.sender || hasRole(ADMIN_ROLE, msg.sender), "Not authorized");
         
-        NFTContent memory nftContent = _tokenContent[tokenId];
-        
-        if (!nftContent.isUnlocked && block.timestamp < nftContent.unlockTime) {
-            return ("", nftContent.customMessage, false);
-        }
+        NFTMetadata memory meta = _metadata[tokenId];
+        NFTStatus memory status = _status[tokenId];
+        LockTime memory lockTime = _lockTimes[tokenId];
         
         return (
-            nftContent.encryptedContent,
-            nftContent.customMessage,
-            nftContent.isUnlocked
+            status.isUnlocked ? meta.content : "",
+            meta.title,
+            meta.description,
+            status.isUnlocked,
+            lockTime.unlockTimestamp,
+            status.creator,
+            meta.templateId,
+            meta.mediaType,
+            status.isTransferable,
+            status.isEncrypted
         );
     }
 
     /**
-     * @dev دریافت زمان باقی‌مانده قفل
+     * @dev Gets remaining lock time components
      */
-    function getRemainingLockTime(uint256 tokenId) public view returns (
-        uint256 remainingDays,
-        uint256 remainingHours,
-        uint256 remainingMinutes
-    ) {
-        require(_exists(tokenId), "Token does not exist");
-        NFTContent memory content = _tokenContent[tokenId];
-        
-        if (content.isUnlocked || block.timestamp >= content.unlockTime) {
-            return (0, 0, 0);
-        }
-        
-        return Utils.getRemainingTime(content.unlockTime);
-    }
-
-    /**
-     * @dev دریافت کانفیگ زمان قفل
-     */
-    function getLockTimeConfig(uint256 tokenId) public view returns (
+    function getRemainingTime(uint256 tokenId) external view returns (
         uint256 lockDays,
         uint256 lockHours,
         uint256 lockMinutes,
         uint256 totalSeconds
     ) {
         require(_exists(tokenId), "Token does not exist");
-        LockTimeConfig memory config = _tokenLockConfig[tokenId];
-        return (
-            config.lockDays,
-            config.lockHours,
-            config.lockMinutes,
-            config.totalSeconds
-        );
+        NFTStatus memory status = _status[tokenId];
+        LockTime memory lockTime = _lockTimes[tokenId];
+        
+        if (status.isUnlocked || block.timestamp >= lockTime.unlockTimestamp) {
+            return (0, 0, 0, 0);
+        }
+        
+        uint256 remaining = lockTime.unlockTimestamp - block.timestamp;
+        lockDays = remaining / SECONDS_PER_DAY;
+        remaining = remaining % SECONDS_PER_DAY;
+        lockHours = remaining / SECONDS_PER_HOUR;
+        remaining = remaining % SECONDS_PER_HOUR;
+        lockMinutes = remaining / SECONDS_PER_MINUTE;
+        
+        return (lockDays, lockHours, lockMinutes, remaining);
     }
 
     /**
-     * @dev به‌روزرسانی زمان قفل
+     * @dev Gets all NFTs owned by an address
      */
-    function updateUnlockTime(
-        uint256 tokenId,
-        uint256 newLockDays,
-        uint256 newLockHours,
-        uint256 newLockMinutes
-    ) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(_exists(tokenId), "Token does not exist");
-        require(!_tokenContent[tokenId].isUnlocked, "Already unlocked");
-
-        uint256 newTotalSeconds = Utils.timeToSeconds(newLockDays, newLockHours, newLockMinutes);
-        uint256 newUnlockTime = block.timestamp + newTotalSeconds;
-        require(newUnlockTime > block.timestamp, "New time must be future");
-
-        _tokenLockConfig[tokenId] = LockTimeConfig({
-            lockDays: newLockDays,
-            lockHours: newLockHours,
-            lockMinutes: newLockMinutes,
-            totalSeconds: newTotalSeconds
-        });
-
-        _tokenContent[tokenId].unlockTime = newUnlockTime;
-        emit UnlockTimeUpdated(tokenId, newUnlockTime);
+    function getUserNFTs(address user) external view returns (uint256[] memory) {
+        return _userNFTs[user];
     }
+
+    /**
+     * @dev Extends lock time for an NFT
+     */
+    function extendLockTime(
+        uint256 tokenId,
+        uint256 additionalDays,
+        uint256 additionalHours,
+        uint256 additionalMinutes
+    ) 
+        external 
+        whenNotPaused
+    {
+        require(hasRole(ADMIN_ROLE, msg.sender) || ownerOf(tokenId) == msg.sender, "Not authorized");
+        require(!_status[tokenId].isUnlocked, "Already unlocked");
+        
+        LockTime storage lockTime = _lockTimes[tokenId];
+        uint256 additionalSeconds = 
+            (additionalDays * SECONDS_PER_DAY) +
+            (additionalHours * SECONDS_PER_HOUR) +
+            (additionalMinutes * SECONDS_PER_MINUTE);
+            
+        lockTime.unlockTimestamp += additionalSeconds;
+        lockTime.lockDays += additionalDays;
+        lockTime.lockHours += additionalHours;
+        lockTime.lockMinutes += additionalMinutes;
+
+        emit LockTimeExtended(tokenId, lockTime.unlockTimestamp);
+    }
+
+    // Admin functions
+
+    function pause() external onlyRole(ADMIN_ROLE) {
+        _pause();
+    }
+
+    function unpause() external onlyRole(ADMIN_ROLE) {
+        _unpause();
+    }
+
+    function setTransferability(uint256 tokenId, bool isTransferable) external onlyRole(ADMIN_ROLE) {
+        _status[tokenId].isTransferable = isTransferable;
+        emit TransferabilityUpdated(tokenId, isTransferable);
+    }
+
+    // Required overrides
 
     function _beforeTokenTransfer(
         address from,
         address to,
         uint256 tokenId,
         uint256 batchSize
-    ) internal override(ERC721, ERC721Enumerable) {
-        if (from != address(0)) { // Skip check for minting
-            NFTContent memory content = _tokenContent[tokenId];
+    ) internal override(ERC721, ERC721Enumerable) whenNotPaused {
+        if (from != address(0)) {
+            NFTStatus memory status = _status[tokenId];
             require(
-                content.isTransferable && content.isUnlocked || to == address(0),
+                status.isTransferable && status.isUnlocked || to == address(0) || hasRole(ADMIN_ROLE, msg.sender),
                 "Token not transferable"
             );
         }
@@ -283,6 +326,13 @@ contract TimeLockedNFT is
 
     function _burn(uint256 tokenId) internal override(ERC721, ERC721URIStorage) {
         super._burn(tokenId);
+    }
+
+    function tokenURI(uint256 tokenId) public view override(
+        ERC721,
+        ERC721URIStorage
+    ) returns (string memory) {
+        return super.tokenURI(tokenId);
     }
 
     function supportsInterface(bytes4 interfaceId) public view override(
@@ -294,10 +344,9 @@ contract TimeLockedNFT is
         return super.supportsInterface(interfaceId);
     }
 
-    function tokenURI(uint256 tokenId) public view override(
-        ERC721,
-        ERC721URIStorage
-    ) returns (string memory) {
-        return super.tokenURI(tokenId);
+    function _setUserNFT(address user, uint256 tokenId) internal {
+        _userNFTs[user].push(tokenId);
     }
+
+    
 }

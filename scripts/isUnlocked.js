@@ -3,76 +3,69 @@ const fs = require('fs');
 const path = require('path');
 
 async function getDeploymentInfo() {
-    const deploymentsPath = path.join(__dirname, '../deployments');
-    const network = hre.network.name;
-    const filePath = path.join(deploymentsPath, `${network}.json`);
-
-    if (!fs.existsSync(filePath)) {
-        throw new Error(`No deployment found for network ${network}`);
+    const deploymentsPath = path.join(__dirname, '../deployments.json');
+    
+    if (!fs.existsSync(deploymentsPath)) {
+        throw new Error('No deployments.json file found');
     }
 
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const deployments = JSON.parse(fs.readFileSync(deploymentsPath, 'utf8'));
+    if (!deployments.TimeLockedNFT) {
+        throw new Error('TimeLockedNFT contract not found in deployments');
+    }
+
+    return deployments.TimeLockedNFT;
 }
 
 async function checkNFTStatus(contract, tokenId) {
-    const [content, message, isUnlocked] = await contract.getNFTContent(tokenId);
+    // Get NFT data
+    const data = await contract.getNFTData(tokenId);
     const owner = await contract.ownerOf(tokenId);
     const currentTime = Math.floor(Date.now() / 1000);
 
     return {
         tokenId,
-        isUnlocked,
         owner,
-        message,
-        hasContent: content.length > 0
+        isUnlocked: data.isUnlocked,
+        content: data.isUnlocked ? data.content : "",
+        title: data.title,
+        description: data.description,
+        mediaType: data.mediaType,
+        isTransferable: data.isTransferable,
+        currentTime
     };
 }
 
 async function main() {
     try {
         console.log("Checking NFT unlock status...");
+        console.log("Network:", hre.network.name);
 
-        // Get network details
-        const network = hre.network.name;
-        console.log(`Network: ${network}`);
+        // Get deployment info
+        const deployment = await getDeploymentInfo();
+        console.log("Contract address:", deployment.address);
 
-        // Get contract details
-        const deployments = await getDeploymentInfo();
-        const contractAddress = deployments.TimeLockedNFT.address;
-        console.log(`Contract address: ${contractAddress}`);
-
-        // Get the contract instance
+        // Get contract instance
         const TimeLockedNFT = await hre.ethers.getContractFactory("TimeLockedNFT");
-        const contract = await TimeLockedNFT.attach(contractAddress);
+        const contract = TimeLockedNFT.attach(deployment.address);
 
-        // Get token ID from command line or use default
+        // Get token ID (default to 1 if not provided)
         const tokenId = process.env.TOKEN_ID || 1;
+        console.log("\nChecking Token ID:", tokenId);
 
-        try {
-            const status = await checkNFTStatus(contract, tokenId);
-            
-            console.log("\nNFT Status:");
-            console.log("-----------------");
-            console.log(`Token ID: ${status.tokenId}`);
-            console.log(`Unlocked: ${status.isUnlocked}`);
-            console.log(`Owner: ${status.owner}`);
-            console.log(`Has Content: ${status.hasContent}`);
-            if (status.message) {
-                console.log(`Message: ${status.message}`);
-            }
-
-            // Additional information if not unlocked
-            if (!status.isUnlocked) {
-                const unlockDate = await contract.getUnlockDate(tokenId);
-                console.log("\nUnlock Date:", unlockDate);
-            }
-
-        } catch (error) {
-            if (error.message.includes("Token does not exist")) {
-                console.error(`NFT with token ID ${tokenId} does not exist!`);
-                return;
-            }
-            throw error;
+        const status = await checkNFTStatus(contract, tokenId);
+        
+        console.log("\nNFT Status:");
+        console.log("-----------------");
+        console.log(`Token ID: ${status.tokenId}`);
+        console.log(`Owner: ${status.owner}`);
+        console.log(`Is Unlocked: ${status.isUnlocked}`);
+        console.log(`Title: ${status.title}`);
+        console.log(`Media Type: ${status.mediaType}`);
+        console.log(`Is Transferable: ${status.isTransferable}`);
+        
+        if (status.isUnlocked) {
+            console.log(`\nContent: ${status.content}`);
         }
 
     } catch (error) {
@@ -85,7 +78,7 @@ async function main() {
 if (require.main === module) {
     main()
         .then(() => process.exit(0))
-        .catch((error) => {
+        .catch(error => {
             console.error(error);
             process.exit(1);
         });

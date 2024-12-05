@@ -1,10 +1,10 @@
-# وابستگی‌های Node.js
+# Node.js dependencies
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# فایل‌های متغیر محیطی
+# Environment variable files
 .env
 .env.local
 .env.*.local
@@ -12,41 +12,41 @@ yarn-error.log*
 .env.test
 .env.production
 
-# فایل‌های Hardhat
+# Hardhat files
 /cache
 /artifacts
 /cache-zk
 /broadcast
 /broadcast-logs
 
-# فایل‌های TypeChain
+# TypeChain files
 /typechain
 /typechain-types
 
-# فایل‌های solidity-coverage
+# solidity-coverage files
 /coverage
 /coverage.json
 
-# فولدر پیش‌فرض Hardhat Ignition برای دیپلوی روی نود محلی
+# Default Hardhat Ignition folder for local node deployment
 ignition/deployments/chain-31337
 /deployments/localhost
 
-# فایل‌های سیستمی macOS
+# macOS system files
 .DS_Store
 .AppleDouble
 .LSOverride
 
-# فایل‌های سیستمی Windows
+# Windows system files
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 
-# لاگ‌ها
+# Logs
 *.log
 *.log.*
 logs/
 
-# فایل‌های مربوط به IDEها
+# IDE related files
 .idea/
 *.suo
 *.ntvs*
@@ -55,7 +55,7 @@ logs/
 .vscode/
 *.sw?
 
-# فایل‌های مربوط به Debug و پروفایل
+# Debug and profile related files
 *.swp
 *.swo
 *.log
@@ -63,14 +63,14 @@ logs/
 *.tmp
 __MACOSX/
 
-# خروجی‌های بیلد
+# Build outputs
 /dist
 /out
 /build
 frontend/build/
 .next/
 
-# فایل‌های متفرقه
+# Miscellaneous files
 *.env.backup
 *.test.ts.snap
 *.temp
@@ -79,7 +79,7 @@ __pycache__/
 .DS_Store
 *.pem
 
-# فایل‌های مرتبط با Ethereum
+# Ethereum related files
 /.openzeppelin
 .secret
 keys.json
@@ -87,15 +87,15 @@ mnemonic.txt
 private-keys.txt
 account-keys.json
 
-# فایل‌های مربوط به Gas Reporter
+# Gas Reporter files
 gas-report.txt
 gasReporterOutput.json
 
-# فایل‌های کش مرورگر
+# Browser cache files
 .cache/
 .parcel-cache/
 
-# سایر فایل‌های خاص پروژه
+# Other project-specific files
 coverage/
 coverage.json
 bin/

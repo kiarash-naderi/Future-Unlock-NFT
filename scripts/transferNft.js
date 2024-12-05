@@ -2,98 +2,72 @@ const hre = require("hardhat");
 const fs = require('fs');
 const path = require('path');
 
-async function getDeploymentInfo() {
-    const deploymentsPath = path.join(__dirname, '../deployments');
-    const network = hre.network.name;
-    const filePath = path.join(deploymentsPath, `${network}.json`);
-
-    if (!fs.existsSync(filePath)) {
-        throw new Error(`No deployment found for network ${network}`);
-    }
-
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-}
-
-async function verifyNFTOwnership(contract, tokenId, owner) {
-    const currentOwner = await contract.ownerOf(tokenId);
-    return currentOwner.toLowerCase() === owner.toLowerCase();
-}
-
 async function main() {
     try {
         console.log("Starting NFT transfer process...");
+        console.log("Network:", hre.network.name);
 
-        // Get network details
-        const network = hre.network.name;
-        console.log(`Network: ${network}`);
-
-        // Get contract details
-        const deployments = await getDeploymentInfo();
-        const contractAddress = deployments.TimeLockedNFT.address;
-        console.log(`Contract address: ${contractAddress}`);
-
-        // Get the contract instance
-        const TimeLockedNFT = await hre.ethers.getContractFactory("TimeLockedNFT");
-        const contract = await TimeLockedNFT.attach(contractAddress);
-
-        // Get parameters from environment variables or use defaults
-        const tokenId = process.env.TOKEN_ID || 1;
-        const recipient = process.env.RECIPIENT_ADDRESS;
-        if (!recipient) {
-            throw new Error("Recipient address not provided! Set RECIPIENT_ADDRESS in environment.");
-        }
-
-        // Get current owner (sender)
         const [sender] = await hre.ethers.getSigners();
-        const senderAddress = await sender.getAddress();
+        const deployment = await getDeploymentInfo();
+        const TimeLockedNFT = await hre.ethers.getContractFactory("TimeLockedNFT");
+        const contract = TimeLockedNFT.attach(deployment.address);
 
-        // Verify ownership
-        console.log("\nVerifying ownership...");
-        const isOwner = await verifyNFTOwnership(contract, tokenId, senderAddress);
-        if (!isOwner) {
-            throw new Error(`You (${senderAddress}) are not the owner of this NFT!`);
+        // تغییر توکن آیدی به 1
+        const tokenId = process.env.TOKEN_ID || 1;
+        const recipient = process.env.RECIPIENT_ADDRESS || "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+
+        console.log("\nTransfer Details:");
+        console.log("Token ID:", tokenId);
+        console.log("From:", sender.address);
+        console.log("To:", recipient);
+
+        // چک کردن وضعیت NFT قبل از ترنسفر
+        const data = await contract.getNFTData(tokenId);
+        console.log("\nNFT Status:");
+        console.log("Is Unlocked:", data.isUnlocked);
+        console.log("Is Transferable:", data.isTransferable);
+
+        if (!data.isUnlocked) {
+            throw new Error("NFT is still locked and cannot be transferred");
         }
 
-        // Check if NFT is transferable
-        console.log("Checking transfer restrictions...");
-        const [, , isUnlocked] = await contract.getNFTContent(tokenId);
+        if (!data.isTransferable) {
+            throw new Error("NFT is not transferable");
+        }
+
+        // انجام ترنسفر
+        console.log("\nInitiating transfer...");
+        const tx = await contract.transferFrom(sender.address, recipient, tokenId);
+        console.log("Waiting for confirmation...");
         
-        // Perform transfer
-        console.log(`\nTransferring NFT ${tokenId} to ${recipient}...`);
-        const tx = await contract.safeTransferFrom(senderAddress, recipient, tokenId);
-        console.log("Transfer transaction sent. Waiting for confirmation...");
+        await tx.wait();
         
-        const receipt = await tx.wait();
-        
-        // Verify transfer
+        // تأیید ترنسفر
         const newOwner = await contract.ownerOf(tokenId);
-        if (newOwner.toLowerCase() === recipient.toLowerCase()) {
-            console.log("\nTransfer successful!");
-            console.log("New owner:", newOwner);
-            
-            // Log transaction details
-            console.log("\nTransaction Details:");
-            console.log("Transaction Hash:", receipt.hash);
-            console.log("Block Number:", receipt.blockNumber);
-            console.log("Gas Used:", receipt.gasUsed.toString());
-        } else {
-            throw new Error("Transfer verification failed!");
-        }
+        console.log("\nTransfer successful!");
+        console.log("New owner:", newOwner);
 
     } catch (error) {
-        console.error("Error during NFT transfer:");
-        console.error(error.message || error);
+        console.error("\nError during transfer:");
+        console.error(error.message);
         process.exitCode = 1;
     }
+}
+
+async function getDeploymentInfo() {
+    const deploymentsPath = path.join(__dirname, '../deployments.json');
+    if (!fs.existsSync(deploymentsPath)) {
+        throw new Error('No deployments.json file found');
+    }
+    const deployments = JSON.parse(fs.readFileSync(deploymentsPath, 'utf8'));
+    return deployments.TimeLockedNFT;
 }
 
 if (require.main === module) {
     main()
         .then(() => process.exit(0))
-        .catch((error) => {
+        .catch(error => {
             console.error(error);
             process.exit(1);
         });
 }
-
-module.exports = { main, verifyNFTOwnership };

@@ -1,72 +1,118 @@
 // scripts/mintNFT.js
 const hre = require("hardhat");
-const { getDeployedContract, encryptContent } = require("./utils");
+const fs = require('fs');
+const path = require('path');
+
+async function getDeploymentInfo() {
+    const deploymentsPath = path.join(__dirname, '../deployments.json');
+    
+    if (!fs.existsSync(deploymentsPath)) {
+        throw new Error('No deployments.json file found');
+    }
+
+    const deployments = JSON.parse(fs.readFileSync(deploymentsPath, 'utf8'));
+    if (!deployments.TimeLockedNFT) {
+        throw new Error('TimeLockedNFT contract not found in deployments');
+    }
+
+    return deployments.TimeLockedNFT;
+}
 
 async function main() {
     try {
-        // Get the contract instance
-        const contract = await getDeployedContract("TimeLockedNFT");
+        console.log("Starting NFT minting process...");
+        console.log("Network:", hre.network.name);
+
+        // Get deployment info
+        const deployment = await getDeploymentInfo();
+        console.log("Contract address:", deployment.address);
+
+        // Get contract instance
+        const TimeLockedNFT = await hre.ethers.getContractFactory("TimeLockedNFT");
+        const contract = TimeLockedNFT.attach(deployment.address);
+
+        // Get signer
         const [creator] = await hre.ethers.getSigners();
-
-        // تنظیم پارامترهای NFT
-        const predefinedIndex = 0; // استفاده از اولین قالب پیش‌فرض
-        const originalContent = "This is the secret content that will be revealed later";
-        const encryptedContent = await encryptContent(originalContent);
         
-        // تنظیم زمان قفل: 7 روز، 0 ساعت، 0 دقیقه
-        const lockDays = 7;
-        const lockHours = 0;
-        const lockMinutes = 0;
-        
-        const customMessage = "Your special message will be revealed in 7 days!";
+        // Mint parameters
+        const mintParams = {
+            recipient: creator.address,
+            content: "This is the secret content that will be revealed later",
+            lockDays: 7,
+            lockHours: 0,
+            lockMinutes: 0,
+            templateId: 1,
+            metadataURI: "ipfs://test",
+            title: "Test NFT",
+            description: "Test Description",
+            mediaType: "text",
+            isTransferable: true,
+            isEncrypted: true
+        };
 
-        console.log("Creating time-locked NFT...");
-        console.log(`Lock Time: ${lockDays} days, ${lockHours} hours, ${lockMinutes} minutes`);
+        console.log("\nMinting NFT with parameters:");
+        console.log("Recipient:", mintParams.recipient);
+        console.log("Lock time:", `${mintParams.lockDays} days, ${mintParams.lockHours} hours, ${mintParams.lockMinutes} minutes`);
 
-        const tx = await contract.createNFT(
-            await creator.getAddress(),
-            predefinedIndex,
-            encryptedContent,
-            lockDays,
-            lockHours,
-            lockMinutes,
-            customMessage,
-            true // isTransferable
+        const tx = await contract.mintNFT(
+            mintParams.recipient,
+            mintParams.content,
+            mintParams.lockDays,
+            mintParams.lockHours,
+            mintParams.lockMinutes,
+            mintParams.templateId,
+            mintParams.metadataURI,
+            mintParams.title,
+            mintParams.description,
+            mintParams.mediaType,
+            mintParams.isTransferable,
+            mintParams.isEncrypted
         );
 
-        // Wait for confirmation
+        console.log("\nTransaction sent, waiting for confirmation...");
         const receipt = await tx.wait();
-        const event = receipt.logs.find(
-            log => contract.interface.parseLog(log).name === 'NFTCreated'
-        );
 
-        if (event) {
-            const parsedEvent = contract.interface.parseLog(event);
-            const tokenId = parsedEvent.args[0];
-            const unlockTime = parsedEvent.args[2];
-            
-            console.log(`\nNFT created successfully!`);
-            console.log(`Token ID: ${tokenId}`);
-            console.log(`Unlock Time: ${new Date(Number(unlockTime) * 1000).toLocaleString()}`);
-            console.log(`Transaction Hash: ${receipt.hash}`);
+        // Parse events properly
+        const mintEvent = receipt.logs.find(log => {
+            try {
+                const parsed = contract.interface.parseLog({
+                    topics: log.topics,
+                    data: log.data
+                });
+                return parsed.name === "NFTMinted";
+            } catch {
+                return false;
+            }
+        });
 
-            // Get remaining time
-            const [remainingDays, remainingHours, remainingMinutes] = 
-                await contract.getRemainingLockTime(tokenId);
-            
-            console.log("\nRemaining Lock Time:");
-            console.log(`Days: ${remainingDays}`);
-            console.log(`Hours: ${remainingHours}`);
-            console.log(`Minutes: ${remainingMinutes}`);
+        if (!mintEvent) {
+            throw new Error("NFTMinted event not found in transaction receipt");
         }
 
+        const parsedEvent = contract.interface.parseLog({
+            topics: mintEvent.topics,
+            data: mintEvent.data
+        });
+
+        const tokenId = parsedEvent.args[0];
+
+        console.log("\nNFT Minted Successfully!");
+        console.log("Token ID:", tokenId.toString());
+        console.log("Transaction Hash:", receipt.hash);
+
     } catch (error) {
-        console.error("Error creating NFT:", error);
+        console.error("Error minting NFT:", error.message || error);
         process.exitCode = 1;
     }
 }
 
-main().catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-});
+if (require.main === module) {
+    main()
+        .then(() => process.exit(0))
+        .catch(error => {
+            console.error(error);
+            process.exit(1);
+        });
+}
+
+module.exports = { main };

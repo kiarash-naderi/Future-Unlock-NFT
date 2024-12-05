@@ -21,18 +21,12 @@ async function verifyContract(address, args) {
     }
 }
 
-async function saveDeploymentInfo(info) {
-    const deploymentsDir = path.join(__dirname, "../deployments");
-    
-    if (!fs.existsSync(deploymentsDir)) {
-        fs.mkdirSync(deploymentsDir);
-    }
-
-    const filePath = path.join(deploymentsDir, `${hre.network.name}.json`);
-    
+async function saveDeployment(info) {
+    const filePath = path.join(__dirname, "../deployments.json");
     let deployments = {};
+    
     if (fs.existsSync(filePath)) {
-        const content = fs.readFileSync(filePath, "utf8");
+        const content = fs.readFileSync(filePath, 'utf8');
         deployments = JSON.parse(content);
     }
 
@@ -54,15 +48,12 @@ async function saveDeploymentInfo(info) {
 
 async function main() {
     try {
-        // Get the deployer's address
         const [deployer] = await hre.ethers.getSigners();
         console.log(`Deploying contracts with account: ${await deployer.getAddress()}`);
         
-        // Get initial balance
         const balance = await deployer.provider.getBalance(deployer.getAddress());
         console.log(`Account balance: ${hre.ethers.formatEther(balance)} ETH\n`);
 
-        // Deploy TimeLockedNFT
         console.log("Deploying TimeLockedNFT contract...");
         const TimeLockedNFT = await hre.ethers.getContractFactory("TimeLockedNFT");
         const timeLockedNFT = await TimeLockedNFT.deploy();
@@ -71,36 +62,37 @@ async function main() {
         const contractAddress = await timeLockedNFT.getAddress();
         console.log(`TimeLockedNFT deployed to: ${contractAddress}`);
 
-        // Save deployment information
-        const deploymentInfo = {
+        // Save deployment info
+        await saveDeployment({
             contractName: "TimeLockedNFT",
             address: contractAddress,
             deployer: await deployer.getAddress(),
             transactionHash: timeLockedNFT.deploymentTransaction().hash,
-            args: []
-        };
-        await saveDeploymentInfo(deploymentInfo);
+            args: [] // No constructor arguments
+        });
 
-        // Wait for block confirmations
-        console.log("\nWaiting for block confirmations...");
-        const CONFIRMATIONS = 5;
-        await timeLockedNFT.deploymentTransaction().wait(CONFIRMATIONS);
+        // Verify contract if not on localhost
+        if (hre.network.name !== "localhost" && hre.network.name !== "hardhat") {
+            console.log("\nWaiting for block confirmations...");
+            await timeLockedNFT.deployTransaction.wait(5); // Wait for 5 block confirmations
 
-        // Verify contract
-        await verifyContract(contractAddress, []);
+            console.log("\nVerifying contract...");
+            await hre.run("verify:verify", {
+                address: contractAddress,
+                constructorArguments: []
+            });
+        }
 
-        // Final balance check
-        const finalBalance = await deployer.provider.getBalance(deployer.getAddress());
-        console.log(`\nDeployment cost: ${hre.ethers.formatEther(balance - finalBalance)} ETH`);
-        console.log("Deployment completed successfully!");
-
+        console.log("\nDeployment completed successfully!");
     } catch (error) {
-        console.error("Error during deployment:", error);
-        process.exitCode = 1;
+        console.error("Deployment failed:", error);
+        process.exit(1);
     }
 }
 
-main().catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-});
+main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+        console.error(error);
+        process.exit(1);
+    });

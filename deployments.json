@@ -1,0 +1,12 @@
+{
+  "TimeLockedNFT": {
+    "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "deploymentTime": "2024-12-03T12:50:45.963Z",
+    "transactionHash": "0xee3d807631477962461893c0d7193ed05647f9fe98cb4090047de047978b6a43",
+    "constructorArguments": [],
+    "network": {
+      "name": "localhost"
+    }
+  }
+}

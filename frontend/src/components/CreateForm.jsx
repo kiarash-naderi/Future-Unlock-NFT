@@ -1,65 +1,68 @@
 import React, { useState } from 'react';
 import TimeInput from './TimeInput';
+import { validateFormData } from '../services/nftService';
 import { Send } from 'lucide-react';
-import { validateFormData, createTimeLockNFT } from '../services/nftService';
 
 const CreateForm = ({ selectedNFT, onSubmit }) => {
-    const [formData, setFormData] = useState({
-        message: '',
-        days: 0,
-        hours: 0,
-        minutes: 0,
-        recipient: ''
-    });
+    const [message, setMessage] = useState('');
+    const [days, setDays] = useState(0);
+    const [hours, setHours] = useState(0);
+    const [minutes, setMinutes] = useState(0);
+    const [recipientAddress, setRecipientAddress] = useState('');
     const [errors, setErrors] = useState({});
     const [isLoading, setIsLoading] = useState(false);
 
     const handleTimeChange = ({ days, hours, minutes }) => {
-        setFormData(prev => ({ ...prev, days, hours, minutes }));
+        setDays(days);
+        setHours(hours);
+        setMinutes(minutes);
         if (errors.time) {
             setErrors(prev => ({ ...prev, time: null }));
         }
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setErrors({});
+    const handleSubmit = async (event) => {
+        event.preventDefault();
 
-        // اعتبارسنجی فرم
-        const validation = validateFormData(formData);
-        if (!validation.isValid) {
-            setErrors(validation.errors);
-            return;
-        }
+        // Define formData
+        const formData = {
+            message: message.trim(),
+            days: parseInt(days),
+            hours: parseInt(hours),
+            minutes: parseInt(minutes),
+            recipient: recipientAddress.trim()
+        };
 
-        setIsLoading(true);
         try {
-            const result = await createTimeLockNFT(formData);
-            if (result.success) {
-                onSubmit({
-                    ...formData,
-                    selectedNFT,
-                    transactionHash: result.transactionHash
-                });
-            } else {
-                setErrors({ submit: result.error });
+            // Validate form data
+            const validation = validateFormData(formData);
+            if (!validation.isValid) {
+                console.error('Validation errors:', validation.errors);
+                // Here you can display errors to the user
+                setErrors(validation.errors);
+                return;
             }
+
+            // Log for debugging
+            console.log('Submitting form data:', formData);
+
+            // Call parent submit handler
+            await onSubmit(formData);
         } catch (error) {
-            setErrors({ submit: error.message });
-        } finally {
-            setIsLoading(false);
+            console.error('Error in form submission:', error);
+            // Handle error (e.g., show error message to user)
         }
     };
 
     return (
-        <div className="bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl space-y-6">
+        <form onSubmit={handleSubmit} className="bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl space-y-6">
             {/* Message Input */}
             <div>
                 <label className="block mb-2 text-gray-300 text-lg">Message</label>
                 <textarea
-                    value={formData.message}
+                    value={message}
                     onChange={(e) => {
-                        setFormData({...formData, message: e.target.value});
+                        setMessage(e.target.value);
                         if (errors.message) setErrors({...errors, message: null});
                     }}
                     className={`w-full p-4 bg-gray-900 border rounded-xl text-white 
@@ -75,27 +78,27 @@ const CreateForm = ({ selectedNFT, onSubmit }) => {
 
             {/* Time Input */}
             <TimeInput 
-                days={formData.days}
-                hours={formData.hours}
-                minutes={formData.minutes}
+                days={days}
+                hours={hours}
+                minutes={minutes}
                 onChange={handleTimeChange}
                 error={errors.time}
             />
 
-            {/* Recipient Input */}
+            {/* Recipient Address Input */}
             <div>
                 <label className="block mb-2 text-gray-300 text-lg">Recipient Address</label>
                 <input
                     type="text"
-                    value={formData.recipient}
+                    value={recipientAddress}
                     onChange={(e) => {
-                        setFormData({...formData, recipient: e.target.value});
+                        setRecipientAddress(e.target.value);
                         if (errors.recipient) setErrors({...errors, recipient: null});
                     }}
                     className={`w-full p-4 bg-gray-900 border rounded-xl text-white 
-                             focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                             focus:ring-2 focus:ring-blue-500 focus:border-transparent 
                              ${errors.recipient ? 'border-red-500' : 'border-gray-700'}`}
-                    placeholder="Enter wallet address"
+                    placeholder="Enter recipient address"
                 />
                 {errors.recipient && (
                     <p className="mt-1 text-red-500 text-sm">{errors.recipient}</p>
@@ -112,7 +115,6 @@ const CreateForm = ({ selectedNFT, onSubmit }) => {
             {/* Submit Button */}
             <button 
                 type="submit" 
-                onClick={handleSubmit}
                 disabled={isLoading}
                 className={`w-full bg-blue-600 text-white p-4 rounded-xl
                          flex items-center justify-center gap-2
@@ -128,7 +130,7 @@ const CreateForm = ({ selectedNFT, onSubmit }) => {
                     </>
                 )}
             </button>
-        </div>
+        </form>
     );
 };
 

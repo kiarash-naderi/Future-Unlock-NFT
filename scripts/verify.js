@@ -2,63 +2,83 @@ const hre = require("hardhat");
 const fs = require('fs');
 const path = require('path');
 
-async function getDeploymentAddress(contractName) {
-    const deploymentsPath = path.join(__dirname, '../deployments');
-    const network = hre.network.name;
-    const filePath = path.join(deploymentsPath, `${network}.json`);
+// Constants for retry mechanism
+const RETRY_COUNT = 3;
+const DELAY_MS = 30000; // 30 seconds
 
-    if (!fs.existsSync(filePath)) {
-        throw new Error(`No deployment found for network ${network}`);
+async function getDeploymentInfo() {
+    const deploymentsPath = path.join(__dirname, '../deployments.json');
+    
+    if (!fs.existsSync(deploymentsPath)) {
+        throw new Error('No deployments.json file found');
     }
 
-    const deployments = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    if (!deployments[contractName]) {
-        throw new Error(`Contract ${contractName} not found in deployments`);
+    const deployments = JSON.parse(fs.readFileSync(deploymentsPath, 'utf8'));
+    if (!deployments.TimeLockedNFT) {
+        throw new Error('TimeLockedNFT contract not found in deployments');
     }
 
-    return deployments[contractName].address;
+    return deployments.TimeLockedNFT;
+}
+
+async function verifyWithRetry(address, constructorArgs) {
+    for (let attempt = 1; attempt <= RETRY_COUNT; attempt++) {
+        try {
+            console.log(`Verification attempt ${attempt}/${RETRY_COUNT}`);
+            await hre.run("verify:verify", {
+                address: address,
+                constructorArguments: constructorArgs
+            });
+            console.log("Contract verified successfully!");
+            return true;
+        } catch (error) {
+            if (error.message.includes("Already Verified")) {
+                console.log("Contract is already verified!");
+                return true;
+            }
+            
+            if (attempt < RETRY_COUNT) {
+                console.log(`Verification failed. Retrying in ${DELAY_MS/1000} seconds...`);
+                await new Promise(r => setTimeout(r, DELAY_MS));
+            } else {
+                throw error;
+            }
+        }
+    }
+    return false;
 }
 
 async function main() {
     try {
         console.log("Starting contract verification process...");
-        
-        // Get network details
-        const network = hre.network.name;
-        console.log(`Network: ${network}`);
+        console.log("Network:", hre.network.name);
 
-        // Get contract address from deployments
-        const contractAddress = await getDeploymentAddress("TimeLockedNFT");
-        console.log(`Contract address: ${contractAddress}`);
-
-        // Verify the contract
-        console.log("Verifying contract...");
-        await hre.run("verify:verify", {
-            address: contractAddress,
-            constructorArguments: [], // اگر سازنده آرگومانی دارد، اینجا اضافه کنید
-            contract: "contracts/TimeLockedNFT.sol:TimeLockedNFT" // مسیر دقیق قرارداد
-        });
-
-        console.log("Contract verified successfully!");
-    } catch (error) {
-        if (error.message.includes("Already Verified")) {
-            console.log("Contract is already verified!");
-        } else {
-            console.error("Error during verification:");
-            console.error(error);
-            process.exitCode = 1;
+        // Skip verification for local networks
+        if (hre.network.name === "hardhat" || hre.network.name === "localhost") {
+            console.log("Skipping verification on local network");
+            return;
         }
+
+        const deployment = await getDeploymentInfo();
+        console.log("Contract address:", deployment.address);
+
+        console.log("\nStarting verification process...");
+        await verifyWithRetry(deployment.address, []);
+
+    } catch (error) {
+        console.error("Verification failed:", error.message);
+        process.exit(1);
     }
 }
 
-// اجرای اسکریپت
-if (require.main === module) {
-    main()
-        .then(() => process.exit(0))
-        .catch((error) => {
-            console.error(error);
-            process.exit(1);
-        });
-}
+main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+        console.error(error);
+        process.exit(1);
+    });
 
-module.exports = { main };
+module.exports = {
+    verifyWithRetry,
+    getDeploymentInfo
+};

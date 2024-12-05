@@ -1,5 +1,5 @@
 const { isAddress } = require('web3-validator');
-const { getContract, dateToTimestamp } = require('../config/contractConfig');
+const { getContract, formatLockTime } = require('../config/contractConfig');
 
 const validateFormData = (formData) => {
     const errors = {};
@@ -28,29 +28,68 @@ const createTimeLockNFT = async (formData) => {
     try {
         const contract = await getContract();
         
-        const unlockTime = dateToTimestamp(
+        // Get formatted lock time
+        const lockTime = formatLockTime(
             formData.days,
             formData.hours,
             formData.minutes
         );
 
+        console.log('Creating NFT with params:', {
+            message: formData.message,
+            lockTime,
+            recipient: formData.recipient
+        });
+
+        // Call mintNFT with new parameters
         const tx = await contract.mintNFT(
+            formData.recipient,
             formData.message,
-            unlockTime
+            lockTime.lockDays,
+            lockTime.lockHours,
+            lockTime.lockMinutes,
+            1, // templateId
+            "ipfs://test", // metadataURI
+            "Time Locked NFT", // title
+            formData.message, // description
+            "text", // mediaType
+            true, // isTransferable
+            true, // isEncrypted
+            {
+                gasLimit: 500000
+            }
         );
 
+        console.log('Transaction sent:', tx.hash);
         const receipt = await tx.wait();
-        
+        console.log('Transaction receipt:', receipt);
+
+        // Find NFTMinted event instead of Transfer
+        const mintEvent = receipt.logs.find(log => {
+            try {
+                const parsed = contract.interface.parseLog({
+                    topics: log.topics,
+                    data: log.data
+                });
+                return parsed.name === "NFTMinted";
+            } catch {
+                return false;
+            }
+        });
+
         return {
             success: true,
-            transactionHash: receipt.transactionHash,
-            tokenId: receipt.events?.find(e => e.event === 'Transfer')?.args?.tokenId?.toString()
+            transactionHash: receipt.hash,
+            tokenId: mintEvent ? contract.interface.parseLog({
+                topics: mintEvent.topics,
+                data: mintEvent.data
+            }).args.tokenId.toString() : null
         };
     } catch (error) {
-        console.error('Error creating NFT:', error);
+        console.error('Detailed error:', error);
         return {
             success: false,
-            error: error.message
+            error: error.message || 'Transaction failed'
         };
     }
 };
@@ -58,13 +97,12 @@ const createTimeLockNFT = async (formData) => {
 const isNFTUnlockable = async (tokenId) => {
     try {
         const contract = await getContract();
-        const currentTime = Math.floor(Date.now() / 1000);
-        const unlockTime = await contract.unlockTimes(tokenId);
+        const nftData = await contract.getNFTData(tokenId);
         
         return {
             success: true,
-            isUnlockable: currentTime >= unlockTime.toNumber(),
-            unlockTime: unlockTime.toNumber()
+            isUnlockable: !nftData.isUnlocked && Date.now() >= nftData.unlockTimestamp * 1000,
+            unlockTime: nftData.unlockTimestamp
         };
     } catch (error) {
         console.error('Error checking NFT unlock status:', error);
