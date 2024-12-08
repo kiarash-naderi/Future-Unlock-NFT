@@ -54,20 +54,20 @@ async function main() {
         console.log("Recipient:", mintParams.recipient);
         console.log("Lock time:", `${mintParams.lockDays} days, ${mintParams.lockHours} hours, ${mintParams.lockMinutes} minutes`);
 
-        const tx = await contract.mintNFT(
-            mintParams.recipient,
-            mintParams.content,
-            mintParams.lockDays,
-            mintParams.lockHours,
-            mintParams.lockMinutes,
-            mintParams.templateId,
-            mintParams.metadataURI,
-            mintParams.title,
-            mintParams.description,
-            mintParams.mediaType,
-            mintParams.isTransferable,
-            mintParams.isEncrypted
-        );
+        const tx = await contract.mintNFT({
+            recipient: mintParams.recipient,
+            content: mintParams.content,
+            lockDays: mintParams.lockDays,
+            lockHours: mintParams.lockHours,
+            lockMinutes: mintParams.lockMinutes,
+            templateId: mintParams.templateId,
+            metadataURI: mintParams.metadataURI,
+            title: mintParams.title,
+            description: mintParams.description,
+            mediaType: mintParams.mediaType,
+            isTransferable: mintParams.isTransferable,
+            isEncrypted: mintParams.isEncrypted
+        });
 
         console.log("\nTransaction sent, waiting for confirmation...");
         const receipt = await tx.wait();

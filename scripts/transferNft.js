@@ -12,7 +12,6 @@ async function main() {
         const TimeLockedNFT = await hre.ethers.getContractFactory("TimeLockedNFT");
         const contract = TimeLockedNFT.attach(deployment.address);
 
-        // تغییر توکن آیدی به 1
         const tokenId = process.env.TOKEN_ID || 1;
         const recipient = process.env.RECIPIENT_ADDRESS || "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 
@@ -21,7 +20,6 @@ async function main() {
         console.log("From:", sender.address);
         console.log("To:", recipient);
 
-        // چک کردن وضعیت NFT قبل از ترنسفر
         const data = await contract.getNFTData(tokenId);
         console.log("\nNFT Status:");
         console.log("Is Unlocked:", data.isUnlocked);
@@ -35,14 +33,12 @@ async function main() {
             throw new Error("NFT is not transferable");
         }
 
-        // انجام ترنسفر
         console.log("\nInitiating transfer...");
         const tx = await contract.transferFrom(sender.address, recipient, tokenId);
         console.log("Waiting for confirmation...");
         
         await tx.wait();
         
-        // تأیید ترنسفر
         const newOwner = await contract.ownerOf(tokenId);
         console.log("\nTransfer successful!");
         console.log("New owner:", newOwner);

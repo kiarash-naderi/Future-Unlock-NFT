@@ -5,6 +5,7 @@ import { getContract } from '../../config/contractConfig';
 import NFTCard3D from './NFTCard3D';
 import NFTFilters from './NFTFilters';
 import LoadingScreen from './LoadingScreen';
+import { BrowserProvider } from 'ethers';
 
 const MyNFTs = ({ onClose }) => {
   const [nfts, setNfts] = useState([]);
@@ -13,21 +14,33 @@ const MyNFTs = ({ onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('newest');
 
-  useEffect(() => {
-    loadUserNFTs();
-  }, []);
-
   const loadUserNFTs = async () => {
     try {
       setLoading(true);
       const contract = await getContract();
-      const userAddress = await contract.signer.getAddress();
-      const userNFTs = await contract.getUserNFTs(userAddress);
       
+      // دریافت provider به روش جدید
+      const provider = new BrowserProvider(window.ethereum);
+      // دریافت signer
+      const signer = await provider.getSigner();
+      // دریافت آدرس کاربر
+      const userAddress = await signer.getAddress();
+      
+      console.log('Loading NFTs for address:', userAddress);
+      
+      const userNFTs = await contract.getUserNFTs(userAddress);
+      console.log('Raw NFTs from contract:', userNFTs);
+      
+      if (!userNFTs || userNFTs.length === 0) {
+        console.log('No NFTs found');
+        setNfts([]);
+        return;
+      }
+
       const nftDetails = await Promise.all(
         userNFTs.map(async (tokenId) => {
           const data = await contract.getNFTData(tokenId);
-          const remaining = await contract.getRemainingTime(tokenId);
+          const unlockDate = new Date(Number(data.unlockTimestamp) * 1000);
           
           return {
             tokenId: tokenId.toString(),
@@ -35,16 +48,20 @@ const MyNFTs = ({ onClose }) => {
             title: data.title,
             description: data.description,
             isUnlocked: data.isUnlocked,
-            unlockTimestamp: data.unlockTimestamp.toString(),
-            remainingTime: {
-              days: remaining.lockDays.toString(),
-              hours: remaining.lockHours.toString(),
-              minutes: remaining.lockMinutes.toString()
-            }
+            templateId: data.templateId.toString(),
+            unlockDate: unlockDate.toLocaleString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true
+            })
           };
         })
       );
 
+      console.log('Processed NFT details:', nftDetails);
       setNfts(nftDetails);
     } catch (error) {
       console.error('Error loading NFTs:', error);
@@ -53,11 +70,17 @@ const MyNFTs = ({ onClose }) => {
     }
   };
 
+  useEffect(() => {
+    loadUserNFTs();
+  }, []);
+
   const handleUnlock = async (tokenId) => {
     try {
       setLoading(true);
       const contract = await getContract();
-      await contract.unlock(tokenId);
+      const tx = await contract.unlock(tokenId);
+      await tx.wait();
+      console.log('NFT unlocked successfully:', tokenId);
       await loadUserNFTs();
     } catch (error) {
       console.error('Error unlocking NFT:', error);
@@ -108,7 +131,7 @@ const MyNFTs = ({ onClose }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-gray-900"
+      className="fixed inset-0 z-50 bg-gray-900 overflow-hidden"
     >
       {/* Header */}
       <div className="fixed top-0 left-0 right-0 bg-gray-900/50 backdrop-blur-sm border-b border-gray-800 z-10">
@@ -128,18 +151,11 @@ const MyNFTs = ({ onClose }) => {
           </div>
         </div>
       </div>
-
       {/* Content */}
-      <div className="mt-20 max-w-6xl mx-auto px-6 py-8">
+      <div className="mt-20 max-w-6xl mx-auto px-6 pb-8 overflow-y-auto h-[calc(100vh-5rem)] scrollbar-thin scrollbar-thumb-blue-500 scrollbar-track-gray-700">
         <NFTFilters
           currentFilter={filter}
-          onFilterChange={(value) => {
-            if (['all', 'locked', 'unlocked'].includes(value)) {
-              setFilter(value);
-            } else {
-              setSortBy(value);
-            }
-          }}
+          onFilterChange={setFilter}
           onSearch={setSearchTerm}
         />
 
@@ -174,7 +190,7 @@ const MyNFTs = ({ onClose }) => {
             </motion.button>
           </motion.div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
             <AnimatePresence mode="popLayout">
               {filteredAndSortedNFTs().map((nft) => (
                 <NFTCard3D 
@@ -189,6 +205,6 @@ const MyNFTs = ({ onClose }) => {
       </div>
     </motion.div>
   );
-};
+}
 
 export default MyNFTs;

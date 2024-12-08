@@ -32,7 +32,8 @@ async function checkNFTStatus(contract, tokenId) {
         description: data.description,
         mediaType: data.mediaType,
         isTransferable: data.isTransferable,
-        currentTime
+        currentTime,
+        metadata: data.metadata
     };
 }
 

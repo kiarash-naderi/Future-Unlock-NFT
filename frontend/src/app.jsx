@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import NFTGrid from './components/NFTGrid';
 import CreateForm from './components/CreateForm';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Clock, Gift, Send, Check, ArrowLeft } from 'lucide-react';
-import { createTimeLockNFT } from './services/nftService';
+import { ChevronRight, Clock, Gift, Send, Check, ArrowLeft, Wallet } from 'lucide-react';
+import { createTimeLockNFT, connectWallet, checkConnection } from './services/nftService';
 import MyNFTs from './components/ui/MyNFTs';
 import LoadingScreen from './components/ui/LoadingScreen';
+import { nftMetadataService } from './services/nftMetadataService';
+import { nftTemplates } from './config/nftTemplates';
 
 // Step Indicator Component
 const StepIndicator = ({ currentStep, totalSteps }) => (
@@ -41,64 +43,97 @@ const Feature = ({ icon: Icon, title, description }) => (
 );
 
 // Intro Screen Component
-const IntroScreen = ({ onStart, onViewNFTs }) => (
-  <div className="text-center space-y-6">
-    <motion.h1
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400"
-    >
-      Welcome to Time-Locked NFT Creator
-    </motion.h1>
-    <motion.p
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.2 }}
-      className="text-xl text-gray-300 max-w-2xl mx-auto"
-    >
-      Create unique NFTs that unlock at specific times in the future. Perfect for time capsules, 
-      scheduled reveals, and special messages.
-    </motion.p>
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ delay: 0.4 }}
-      className="flex justify-center gap-8 py-12"
-    >
-      <Feature icon={Clock} title="Time Lock" description="Set custom unlock times" />
-      <Feature icon={Gift} title="Surprise" description="Perfect for special moments" />
-      <Feature icon={Send} title="Transfer" description="Send to any address" />
-    </motion.div>
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.6 }}
-      className="flex items-center justify-center gap-4"
-    >
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={onStart}
-        className="bg-gradient-to-r from-blue-500 to-teal-500 text-white px-8 py-4 rounded-xl
-                  text-xl font-medium transition-all duration-300 flex items-center gap-2
-                  hover:from-blue-600 hover:to-teal-600 shadow-lg hover:shadow-blue-500/25"
+const IntroScreen = ({ onStart, onViewNFTs, walletAddress }) => {
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleConnect = async () => {
+    setIsConnecting(true);
+    setError(null);
+    try {
+      const result = await connectWallet();
+      if (!result.success) {
+        setError(result.error);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  return (
+    <div className="text-center space-y-6">
+      <motion.h1
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-teal-400"
       >
-        Get Started
-        <ChevronRight className="w-5 h-5" />
-      </motion.button>
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={onViewNFTs}
-        className="bg-gray-800/50 backdrop-blur-sm text-white px-8 py-4 rounded-xl
-                  text-xl font-medium hover:bg-gray-700/50 transition-all duration-300
-                  border border-gray-700/50 hover:border-gray-600/50"
+        Welcome to Time-Locked NFT Creator
+      </motion.h1>
+      <motion.p
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="text-xl text-gray-300 max-w-2xl mx-auto"
       >
-        View My NFTs
-      </motion.button>
-    </motion.div>
-  </div>
-);
+        Create unique NFTs that unlock at specific times in the future. Perfect for time capsules, 
+        scheduled reveals, and special messages.
+      </motion.p>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.4 }}
+        className="flex justify-center gap-8 py-12"
+      >
+        <Feature icon={Clock} title="Time Lock" description="Set custom unlock times" />
+        <Feature icon={Gift} title="Surprise" description="Perfect for special moments" />
+        <Feature icon={Send} title="Transfer" description="Send to any address" />
+      </motion.div>
+      <div className="flex flex-col items-center gap-4">
+        {!walletAddress ? (
+          <>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              onClick={handleConnect}
+              disabled={isConnecting}
+              className="bg-gradient-to-r from-blue-500 to-teal-500 text-white px-8 py-4 rounded-xl
+                        text-xl font-medium flex items-center gap-2"
+            >
+              <Wallet className="w-5 h-5" />
+              {isConnecting ? "Connecting..." : "Connect Wallet"}
+            </motion.button>
+            {error && <p className="text-red-500">{error}</p>}
+          </>
+        ) : (
+          <div className="flex gap-4">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={onStart}
+              className="bg-gradient-to-r from-blue-500 to-teal-500 text-white px-8 py-4 rounded-xl
+                        text-xl font-medium transition-all duration-300 flex items-center gap-2
+                        hover:from-blue-600 hover:to-teal-600 shadow-lg hover:shadow-blue-500/25"
+            >
+              Get Started
+              <ChevronRight className="w-5 h-5" />
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={onViewNFTs}
+              className="bg-gray-800/50 backdrop-blur-sm text-white px-8 py-4 rounded-xl
+                        text-xl font-medium hover:bg-gray-700/50 transition-all duration-300
+                        border border-gray-700/50 hover:border-gray-600/50"
+            >
+              View My NFTs
+            </motion.button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 // Success Screen Component
 const SuccessScreen = ({ transactionHash, onReset }) => (
@@ -194,11 +229,12 @@ const StepContent = ({
   onSubmit, 
   transactionHash, 
   onReset,
-  onViewNFTs
+  onViewNFTs,
+  walletAddress
 }) => {
   switch (step) {
     case 0:
-      return <IntroScreen onStart={onStart} onViewNFTs={onViewNFTs} />;
+      return <IntroScreen onStart={onStart} onViewNFTs={onViewNFTs} walletAddress={walletAddress} />;
     case 1:
       return (
         <motion.div
@@ -240,12 +276,60 @@ const StepContent = ({
 
 // Main App Component with enhanced animations
 const App = () => {
+  const [walletAddress, setWalletAddress] = useState(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedNFT, setSelectedNFT] = useState(null);
   const [transactionHash, setTransactionHash] = useState(null);
   const [showMyNFTs, setShowMyNFTs] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [walletError, setWalletError] = useState(null);
+
+  useEffect(() => {
+    const init = async () => {
+        const connectionResult = await checkConnection();
+        if (connectionResult.connected) {
+            setWalletAddress(connectionResult.address);
+        }
+    };
+
+    init();
+
+    const handleAccountsChanged = (accounts) => {
+        const newAddress = accounts[0] || null;
+        setWalletAddress(newAddress);
+    };
+
+    const handleDisconnect = () => {
+        setWalletAddress(null);
+    };
+
+    if (window.ethereum) {
+        window.ethereum.on('accountsChanged', handleAccountsChanged);
+        window.ethereum.on('disconnect', handleDisconnect);
+
+        return () => {
+            if (window.ethereum?.removeListener) {
+                window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+                window.ethereum.removeListener('disconnect', handleDisconnect);
+            }
+        };
+    }
+  }, []);
+
+  const handleConnect = async () => {
+    setIsConnecting(true);
+    setWalletError(null);
+    
+    const result = await connectWallet();
+    if (result.success) {
+      setWalletAddress(result.address);
+    } else {
+      setWalletError(result.error);
+    }
+    setIsConnecting(false);
+  };
+
   const totalSteps = 4;
 
   const handlePrevStep = () => {
@@ -268,26 +352,43 @@ const App = () => {
     handleNextStep();
   };
 
-  const handleFormSubmit = async (formData) => {
-    setIsCreating(true);
-    try {
-        console.log('Form data received:', formData);
-        const result = await createTimeLockNFT(formData);
-        
-        if (result.success) {
-            setTransactionHash(result.transactionHash);
-            handleNextStep();
-        } else {
-            console.error('Failed to create NFT:', result.error);
-            alert(`Failed to create NFT: ${result.error}`);
-        }
-    } catch (error) {
-        console.error('Error in form submission:', error);
-        alert(`Error in form submission: ${error.message}`);
-    } finally {
-        setIsCreating(false);
-    }
-  };
+const handleFormSubmit = async (formData) => {
+  try {
+      const mintData = {
+          recipient: formData.recipient,
+          content: formData.message, 
+          lockDays: formData.days,
+          lockHours: formData.hours, 
+          lockMinutes: formData.minutes,
+          templateId: selectedNFT.id,
+          title: selectedNFT.name,
+          description: selectedNFT.description,
+          mediaType: selectedNFT.mediaType,
+          isTransferable: true,
+          isEncrypted: false
+      };
+
+      setIsCreating(true);
+
+      const metadataURI = await nftMetadataService.uploadMetadata(formData, selectedNFT.id, nftTemplates);
+      mintData.metadataURI = metadataURI;
+
+      const result = await createTimeLockNFT(mintData);
+      
+      if (result.success) {
+          setTransactionHash(result.transactionHash);
+          handleNextStep();
+      } else {
+          console.error('Failed to create NFT:', result.error);
+          alert(`Failed to create NFT: ${result.error}`);
+      }
+  } catch (error) {
+      console.error('Error in form submission:', error);
+      alert(`Error in form submission: ${error.message}`);
+  } finally {
+      setIsCreating(false);
+  }
+};
 
   const handleReset = () => {
     setCurrentStep(0);
@@ -336,6 +437,7 @@ const App = () => {
               transactionHash={transactionHash}
               onReset={handleReset}
               onViewNFTs={() => setShowMyNFTs(true)}
+              walletAddress={walletAddress}
             />
           )}
         </AnimatePresence>

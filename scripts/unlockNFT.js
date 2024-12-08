@@ -17,6 +17,14 @@ async function main() {
         const tokenId = process.env.TOKEN_ID || 1;
         console.log(`\nAttempting to unlock NFT with token ID: ${tokenId}`);
 
+        // Check ownership before unlock
+        const ownerAddress = await nftContract.ownerOf(tokenId);
+        const isOwner = ownerAddress === owner.address;
+        if (!isOwner) {
+            console.log("\n❌ Cannot unlock: You are not the owner of this NFT.");
+            return;
+        }
+
         // Get NFT data
         const data = await nftContract.getNFTData(tokenId);
         console.log("\nCurrent NFT Status:");

@@ -10,7 +10,7 @@ async function main() {
 
         const [owner] = await hre.ethers.getSigners();
         const TimeLockedNFT = await hre.ethers.getContractFactory("TimeLockedNFT");
-        const contract = await TimeLockedNFT.attach("0x5FbDB2315678afecb367f032d93F642f64180aa3");
+        const contract = await TimeLockedNFT.attach("0x25a2A0b7dCC1a2F721f95ceCC9Fc375C50Bc0E3e");
 
         // Checking total number of NFTs
         const totalSupply = await contract.totalSupply();
@@ -25,8 +25,17 @@ async function main() {
             const nftData = await contract.getNFTData(receiverNFTs[0]);
             console.log("\nFirst NFT Data:");
             console.log("Is Unlocked:", nftData.isUnlocked);
-            console.log("Unlock Time:", new Date(nftData.unlockTimestamp * 1000).toLocaleString());
+            console.log("Unlock Time:", new Date(nftData.unlockTimestamp.toString() * 1000).toLocaleString());
             console.log("Content:", nftData.content || "[Locked]");
+            console.log("Title:", nftData.title);
+            console.log("Description:", nftData.description);
+            console.log("Media Type:", nftData.mediaType);
+            console.log("Is Transferable:", nftData.isTransferable);
+            
+            // Calculate and display the remaining time
+            const currentTime = Math.floor(Date.now() / 1000);
+            const remainingTime = nftData.isUnlocked ? 0 : (nftData.unlockTimestamp - BigInt(currentTime));
+            console.log("Remaining Time (seconds):", remainingTime > 0 ? remainingTime.toString() : "Already Unlocked");
         }
 
     } catch (error) {

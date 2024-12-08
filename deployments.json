@@ -1,12 +1,12 @@
 {
   "TimeLockedNFT": {
-    "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-    "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-    "deploymentTime": "2024-12-03T12:50:45.963Z",
-    "transactionHash": "0xee3d807631477962461893c0d7193ed05647f9fe98cb4090047de047978b6a43",
+    "address": "0x25a2A0b7dCC1a2F721f95ceCC9Fc375C50Bc0E3e",
+    "deployer": "0x0B8b6B610e0D5902F0bca6B5a2Da3dc7fb0b2c30",
+    "deploymentTime": "2024-12-06T16:16:21.591Z",
+    "transactionHash": "0x97568fc817029911f9911247eff08f13b95af2bc1a57d4ceba6e758fad4b95e7",
     "constructorArguments": [],
     "network": {
-      "name": "localhost"
+      "name": "sepolia"
     }
   }
 }

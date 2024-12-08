@@ -49,38 +49,38 @@ async function saveDeployment(info) {
 async function main() {
     try {
         const [deployer] = await hre.ethers.getSigners();
-        console.log(`Deploying contracts with account: ${await deployer.getAddress()}`);
+        console.log(`Deploying contracts with account: ${deployer.address}`);
         
-        const balance = await deployer.provider.getBalance(deployer.getAddress());
+        const balance = await hre.ethers.provider.getBalance(deployer.address);
         console.log(`Account balance: ${hre.ethers.formatEther(balance)} ETH\n`);
 
         console.log("Deploying TimeLockedNFT contract...");
         const TimeLockedNFT = await hre.ethers.getContractFactory("TimeLockedNFT");
         const timeLockedNFT = await TimeLockedNFT.deploy();
-        await timeLockedNFT.waitForDeployment();
         
+        // Wait for the deployment transaction
+        await timeLockedNFT.waitForDeployment();
         const contractAddress = await timeLockedNFT.getAddress();
+        
         console.log(`TimeLockedNFT deployed to: ${contractAddress}`);
 
         // Save deployment info
         await saveDeployment({
             contractName: "TimeLockedNFT",
             address: contractAddress,
-            deployer: await deployer.getAddress(),
+            deployer: deployer.address,
             transactionHash: timeLockedNFT.deploymentTransaction().hash,
             args: [] // No constructor arguments
         });
 
-        // Verify contract if not on localhost
+        // Wait for block confirmations and verify
         if (hre.network.name !== "localhost" && hre.network.name !== "hardhat") {
             console.log("\nWaiting for block confirmations...");
-            await timeLockedNFT.deployTransaction.wait(5); // Wait for 5 block confirmations
+            // Wait for 5 blocks
+            await timeLockedNFT.deploymentTransaction().wait(5);
 
             console.log("\nVerifying contract...");
-            await hre.run("verify:verify", {
-                address: contractAddress,
-                constructorArguments: []
-            });
+            await verifyContract(contractAddress, []);
         }
 
         console.log("\nDeployment completed successfully!");
