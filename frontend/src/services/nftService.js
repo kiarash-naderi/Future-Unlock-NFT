@@ -75,14 +75,22 @@ const createTimeLockNFT = async (formData) => {
         
         console.log('Metadata uploaded, URI:', metadataURI);
         
-        const now = Math.floor(Date.now() / 1000); // current timestamp in seconds
-        const unlockTime = now + 
-            (formData.lockDays * 24 * 60 * 60) +
-            (formData.lockHours * 60 * 60) +
-            (formData.lockMinutes * 60);
-        
-        console.log('Current time:', new Date(now * 1000).toLocaleString());
-        console.log('Unlock time:', new Date(unlockTime * 1000).toLocaleString());
+        const now = new Date();
+        now.setMinutes(now.getMinutes() + formData.lockMinutes);
+        now.setHours(now.getHours() + formData.lockHours);
+        now.setDate(now.getDate() + formData.lockDays);
+
+        const unlockTime = Math.floor(now.getTime() / 1000);
+
+        console.log('Time details:', {
+            input: {
+                days: formData.lockDays,
+                hours: formData.lockHours,
+                minutes: formData.lockMinutes
+            },
+            unlockTime,
+            expectedUnlock: new Date(unlockTime * 1000).toLocaleString()
+        });
         
         const tx = await contract.mintNFT({
             recipient: formData.recipient,

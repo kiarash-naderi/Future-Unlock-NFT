@@ -1,48 +1,46 @@
 import React from 'react';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Lock, Unlock, Clock, X, Eye } from 'lucide-react';
+import { Lock, Unlock, Clock, X, Eye, Hash } from 'lucide-react';
 import { nftTemplates } from '../../config/nftTemplates';
 import ContentModal from './ContentModal';
+import {
+    getRemainingTime,
+    formatRemaining,
+    isExpired
+} from '../../utils/timeUtils';
+import LoadingScreen from './LoadingScreen';
+import { ethers } from 'ethers';
+
+const SECONDS_PER_DAY = 86400;
+const SECONDS_PER_HOUR = 3600;
+const SECONDS_PER_MINUTE = 60;
 
 const NFTCard3D = React.forwardRef(({ nft, onUnlock }, ref) => {
     const [isHovered, setIsHovered] = useState(false);
     const [showContent, setShowContent] = useState(false);
     const template = nftTemplates.find(t => t.id.toString() === nft.templateId?.toString());
+    const [unlockError, setUnlockError] = useState(null);
+    const [isUnlocking, setIsUnlocking] = useState(false);
+    const [isImported, setIsImported] = useState(false);
 
-    const CountdownTimer = ({ unlockDate }) => {
-        const [timeLeft, setTimeLeft] = useState({
-            days: 0,
-            hours: 0,
-            minutes: 0,
-            seconds: 0
+    const CountdownTimer = ({ unlockTimestamp }) => {
+        const [timeLeft, setTimeLeft] = useState(() => {
+            return getRemainingTime(unlockTimestamp);
         });
 
         useEffect(() => {
-            const calculateTimeLeft = () => {
-                const difference = new Date(unlockDate).getTime() - new Date().getTime();
-                
-                if (difference <= 0) {
-                    return { days: 0, hours: 0, minutes: 0, seconds: 0 };
-                }
-
-                return {
-                    days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-                    hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-                    minutes: Math.floor((difference / 1000 / 60) % 60),
-                    seconds: Math.floor((difference / 1000) % 60)
-                };
-            };
-
-            // اولین اجرای محاسبه زمان
-            setTimeLeft(calculateTimeLeft());
-
             const timer = setInterval(() => {
-                setTimeLeft(calculateTimeLeft());
+                const remaining = getRemainingTime(unlockTimestamp);
+                setTimeLeft(remaining);
+
+                if (remaining.canUnlock) {
+                    clearInterval(timer);
+                }
             }, 1000);
 
             return () => clearInterval(timer);
-        }, [unlockDate]);
+        }, [unlockTimestamp]);
 
         return (
             <div className="mt-2 py-2 px-3 bg-gray-800/40 rounded-lg">
@@ -55,12 +53,12 @@ const NFTCard3D = React.forwardRef(({ nft, onUnlock }, ref) => {
                         {[
                             { value: timeLeft.days, label: 'Days' },
                             { value: timeLeft.hours, label: 'Hours' },
-                            { value: timeLeft.minutes, label: 'Min' },
-                            { value: timeLeft.seconds, label: 'Sec' }
+                            { value: timeLeft.minutes, label: 'Mins' },
+                            { value: timeLeft.seconds, label: 'Secs' }
                         ].map((item) => (
                             <div key={item.label} className="flex flex-col items-center min-w-[30px]">
                                 <span className="text-blue-400 text-sm font-medium">
-                                    {item.value.toString().padStart(2, '0')}
+                                    {String(item.value).padStart(2, '0')}
                                 </span>
                                 <span className="text-[9px] text-gray-500 mt-0.5">{item.label}</span>
                             </div>
@@ -72,14 +70,23 @@ const NFTCard3D = React.forwardRef(({ nft, onUnlock }, ref) => {
     };
 
     const LockedContent = () => {
+        // console.log('NFT Data:', nft);
+
         const now = Math.floor(Date.now() / 1000);
-        const unlockTime = new Date(nft.unlockDate).getTime() / 1000;
+        const unlockTime = Number(nft.unlockTimestamp);
+
+        // console.log('Time Check:', {
+        //     now,
+        //     unlockTime,
+        //     difference: unlockTime - now
+        // });
+
         const canUnlock = now >= unlockTime && !nft.isUnlocked;
 
         return (
             <motion.div className="space-y-4">
                 <motion.div className="aspect-square rounded-xl overflow-hidden relative">
-                    <img 
+                    <img
                         src={template?.image}
                         alt="NFT"
                         className="w-full h-full object-cover"
@@ -103,7 +110,7 @@ const NFTCard3D = React.forwardRef(({ nft, onUnlock }, ref) => {
                         Unlock Now
                     </motion.button>
                 ) : (
-                    <CountdownTimer unlockDate={nft.unlockDate} />
+                    <CountdownTimer unlockTimestamp={unlockTime} />
                 )}
             </motion.div>
         );
@@ -112,17 +119,17 @@ const NFTCard3D = React.forwardRef(({ nft, onUnlock }, ref) => {
     const UnlockedContent = () => (
         <motion.div className="space-y-4">
             {/* Image Container */}
-            <motion.div 
+            <motion.div
                 className="aspect-square rounded-xl overflow-hidden relative group"
                 whileHover={{ scale: 1.02 }}
                 transition={{ type: "spring", stiffness: 300 }}
             >
-                <img 
+                <img
                     src={template?.image}
                     alt="NFT Content"
                     className="w-full h-full object-cover"
                 />
-                
+
                 {/* Subtle glow effect */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
             </motion.div>
@@ -137,7 +144,7 @@ const NFTCard3D = React.forwardRef(({ nft, onUnlock }, ref) => {
                 {/* Button Background with Gradient */}
                 <div className="absolute inset-0 bg-gradient-to-r from-violet-800 to-indigo-800 rounded-xl 
                                 opacity-90 group-hover:opacity-100 transition-opacity duration-200" />
-                
+
                 {/* Glow Effect */}
                 <div className="absolute inset-0 bg-gradient-to-r from-violet-800/50 to-indigo-800/50 rounded-xl 
                                 blur-xl group-hover:blur-2xl opacity-50 transition-all duration-200" />
@@ -145,11 +152,11 @@ const NFTCard3D = React.forwardRef(({ nft, onUnlock }, ref) => {
                 {/* Button Content */}
                 <div className="relative px-6 py-3 flex items-center justify-center gap-3">
                     <motion.div
-                        animate={{ 
+                        animate={{
                             scale: [1, 1.2, 1],
                             rotate: [0, -10, 0]
                         }}
-                        transition={{ 
+                        transition={{
                             duration: 2,
                             repeat: Infinity,
                             ease: "easeInOut"
@@ -161,7 +168,7 @@ const NFTCard3D = React.forwardRef(({ nft, onUnlock }, ref) => {
                     <motion.div
                         initial={{ x: 0 }}
                         animate={{ x: [0, 5, 0] }}
-                        transition={{ 
+                        transition={{
                             duration: 1.5,
                             repeat: Infinity,
                             ease: "easeInOut"
@@ -173,6 +180,23 @@ const NFTCard3D = React.forwardRef(({ nft, onUnlock }, ref) => {
             </motion.button>
         </motion.div>
     );
+
+    const checkCanUnlock = (unlockDate) => {
+        return getRemainingTime(unlockDate).canUnlock;
+    };
+
+    const handleUnlock = async () => {
+        try {
+            setIsUnlocking(true);
+            setUnlockError(null);
+            await onUnlock(nft.tokenId);
+        } catch (error) {
+            setUnlockError(error.message);
+            console.error('Error unlocking NFT:', error);
+        } finally {
+            setIsUnlocking(false);
+        }
+    };
 
     return (
         <>
@@ -188,26 +212,35 @@ const NFTCard3D = React.forwardRef(({ nft, onUnlock }, ref) => {
                 <motion.div
                     animate={{
                         rotateY: isHovered ? 10 : 0,
-                        boxShadow: isHovered 
+                        boxShadow: isHovered
                             ? "20px 20px 60px rgba(0, 0, 0, 0.3), -20px -20px 60px rgba(255, 255, 255, 0.05)"
                             : "0px 0px 30px rgba(0, 0, 0, 0.2)"
                     }}
                     transition={{ type: "spring", stiffness: 200, damping: 20 }}
                     className="bg-gray-800/30 backdrop-blur-sm rounded-xl overflow-hidden border border-gray-700/50 p-6"
                 >
+
+
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-teal-400">
                             {nft.isUnlocked ? "Unlocked" : "Locked"}
                         </h3>
+                        {/* Token ID Badge */}
+                        <div className="ml-auto bg-gray-900/80 backdrop-blur-sm px-3 py-1.5 rounded-full
+                                  border border-gray-700/50 flex items-center gap-2 group">
+                            <Hash className="w-3.5 h-3.5 text-blue-400/80" />
+                            <span className="text-xs font-medium text-gray-400 group-hover:text-white transition-colors">
+                                {nft.tokenId}
+                            </span>
+                        </div>
                         {/* Lock Icon with Hover Animation */}
                         <motion.div
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.95 }}
-                            className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                nft.isUnlocked 
-                                    ? 'bg-green-500/20 hover:bg-green-500/30' 
+                            className={`ml-2 w-10 h-10 rounded-full flex items-center justify-center ${nft.isUnlocked
+                                    ? 'bg-green-500/20 hover:bg-green-500/30'
                                     : 'bg-yellow-500/20 hover:bg-yellow-500/30'
-                            } transition-colors duration-200`}
+                                } transition-colors duration-200`}
                         >
                             {nft.isUnlocked ? (
                                 <Unlock className="w-5 h-5 text-green-400" />
@@ -226,12 +259,21 @@ const NFTCard3D = React.forwardRef(({ nft, onUnlock }, ref) => {
                 </motion.div>
             </motion.div>
 
-            <ContentModal 
+            <ContentModal
                 isOpen={showContent}
                 onClose={() => setShowContent(false)}
                 nft={nft}
                 template={template}
             />
+
+            {isUnlocking && (
+                <LoadingScreen
+                    status="Unlocking your NFT..."
+                    state={unlockError ? "error" : "loading"}
+                    error={unlockError}
+                    onRetry={() => handleUnlock()}
+                />
+            )}
         </>
     );
 });

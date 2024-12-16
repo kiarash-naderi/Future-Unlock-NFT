@@ -43,7 +43,7 @@ const Feature = ({ icon: Icon, title, description }) => (
 );
 
 // Intro Screen Component
-const IntroScreen = ({ onStart, onViewNFTs, walletAddress }) => {
+const IntroScreen = ({ onStart, onViewNFTs, walletAddress, setWalletAddress }) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -51,9 +51,14 @@ const IntroScreen = ({ onStart, onViewNFTs, walletAddress }) => {
     setIsConnecting(true);
     setError(null);
     try {
-      const result = await connectWallet();
-      if (!result.success) {
-        setError(result.error);
+      if (!window.ethereum) {
+        throw new Error('Please install MetaMask');
+      }
+      const accounts = await window.ethereum.request({
+        method: 'eth_requestAccounts'
+      });
+      if (accounts.length > 0) {
+        setWalletAddress(accounts[0]);
       }
     } catch (err) {
       setError(err.message);
@@ -92,19 +97,67 @@ const IntroScreen = ({ onStart, onViewNFTs, walletAddress }) => {
       </motion.div>
       <div className="flex flex-col items-center gap-4">
         {!walletAddress ? (
-          <>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              onClick={handleConnect}
-              disabled={isConnecting}
-              className="bg-gradient-to-r from-blue-500 to-teal-500 text-white px-8 py-4 rounded-xl
-                        text-xl font-medium flex items-center gap-2"
-            >
-              <Wallet className="w-5 h-5" />
-              {isConnecting ? "Connecting..." : "Connect Wallet"}
-            </motion.button>
-            {error && <p className="text-red-500">{error}</p>}
-          </>
+          <motion.div 
+            className="relative py-16"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
+          >
+            {/* Main Circle */}
+            <div className="relative">
+              <motion.div
+                className="absolute top-[calc(100%-8rem)] left-1/2 transform -translate-x-1/2 w-40 h-40 
+                           rounded-full bg-gradient-to-r from-blue-500/10 to-teal-500/10 
+                           backdrop-blur-lg flex items-center justify-center border border-blue-500/20"
+              >
+                {/* Icon */}
+                <motion.div
+                  animate={{
+                    scale: [1, 1.1, 1],
+                    opacity: [0.7, 1, 0.7]
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" 
+                       stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" 
+                       className="w-16 h-16 text-blue-400/80">
+                    <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"></path>
+                    <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"></path>
+                  </svg>
+                </motion.div>
+              </motion.div>
+
+              {/* Outer Glow */}
+              <motion.div
+                className="absolute inset-0 rounded-full blur-xl bg-gradient-to-r from-blue-500/5 to-teal-500/5"
+                animate={{
+                  scale: [1.2, 1.4, 1.2],
+                  opacity: [0.3, 0.5, 0.3]
+                }}
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+              />
+            </div>
+
+            <div className="flex flex-col items-center justify-center mt-8">
+              <h2 className="text-xl font-bold text-blue-400">
+                Waiting for Wallet Connection
+              </h2>
+              <div className="mt-4">
+                <svg className="animate-spin h-10 w-10 text-blue-400" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v2a6 6 0 100 12v2a8 8 0 01-8-8z"></path>
+                </svg>
+              </div>
+            </div>
+          </motion.div>
         ) : (
           <div className="flex gap-4">
             <motion.button
@@ -230,11 +283,19 @@ const StepContent = ({
   transactionHash, 
   onReset,
   onViewNFTs,
-  walletAddress
+  walletAddress,
+  setWalletAddress
 }) => {
   switch (step) {
     case 0:
-      return <IntroScreen onStart={onStart} onViewNFTs={onViewNFTs} walletAddress={walletAddress} />;
+      return (
+        <IntroScreen 
+          onStart={onStart} 
+          onViewNFTs={onViewNFTs} 
+          walletAddress={walletAddress}
+          setWalletAddress={setWalletAddress}
+        />
+      );
     case 1:
       return (
         <motion.div
@@ -259,6 +320,7 @@ const StepContent = ({
           <CreateForm 
             selectedNFT={selectedNFT} 
             onSubmit={onSubmit}
+            walletAddress={walletAddress}
           />
         </motion.div>
       );
@@ -284,50 +346,83 @@ const App = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [walletError, setWalletError] = useState(null);
+  const [mintingError, setMintingError] = useState(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isStarted, setIsStarted] = useState(false);
+  const [showWalletAddress, setShowWalletAddress] = useState(true);
 
   useEffect(() => {
-    const init = async () => {
-        const connectionResult = await checkConnection();
-        if (connectionResult.connected) {
-            setWalletAddress(connectionResult.address);
-        }
-    };
-
-    init();
-
-    const handleAccountsChanged = (accounts) => {
-        const newAddress = accounts[0] || null;
-        setWalletAddress(newAddress);
-    };
-
-    const handleDisconnect = () => {
-        setWalletAddress(null);
-    };
+    checkWalletConnection();
 
     if (window.ethereum) {
-        window.ethereum.on('accountsChanged', handleAccountsChanged);
-        window.ethereum.on('disconnect', handleDisconnect);
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      window.ethereum.on('chainChanged', handleChainChanged);
+      window.ethereum.on('disconnect', handleDisconnect);
 
-        return () => {
-            if (window.ethereum?.removeListener) {
-                window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-                window.ethereum.removeListener('disconnect', handleDisconnect);
-            }
-        };
+      return () => {
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+        window.ethereum.removeListener('chainChanged', handleChainChanged);
+        window.ethereum.removeListener('disconnect', handleDisconnect);
+      };
     }
   }, []);
 
-  const handleConnect = async () => {
+  const checkWalletConnection = async () => {
+    if (!window.ethereum) return;
+    
+    try {
+      const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+      if (accounts.length > 0) {
+        setWalletAddress(accounts[0]);
+        setWalletError(null);
+      }
+    } catch (error) {
+      console.error('Failed to check wallet connection:', error);
+    }
+  };
+
+  const handleConnectWallet = async () => {
+    if (!window.ethereum) {
+      setWalletError('Please install MetaMask!');
+      return;
+    }
+
     setIsConnecting(true);
     setWalletError(null);
-    
-    const result = await connectWallet();
-    if (result.success) {
-      setWalletAddress(result.address);
-    } else {
-      setWalletError(result.error);
+
+    try {
+      const accounts = await window.ethereum.request({
+        method: 'eth_requestAccounts'
+      });
+      
+      if (accounts.length > 0) {
+        setWalletAddress(accounts[0]);
+        setWalletError(null);
+      }
+    } catch (error) {
+      console.error('Wallet connection failed:', error);
+      setWalletError(error.message);
+    } finally {
+      setIsConnecting(false);
     }
-    setIsConnecting(false);
+  };
+
+  const handleAccountsChanged = (accounts) => {
+    if (accounts.length === 0) {
+      handleDisconnect();
+    } else {
+      setWalletAddress(accounts[0]);
+      setWalletError(null);
+    }
+  };
+
+  const handleChainChanged = () => {
+    window.location.reload();
+  };
+
+  const handleDisconnect = () => {
+    setWalletAddress(null);
+    setWalletError(null);
   };
 
   const totalSteps = 4;
@@ -344,6 +439,9 @@ const App = () => {
   const handleNextStep = () => {
     if (currentStep < totalSteps - 1) {
       setCurrentStep(currentStep + 1);
+      if (currentStep === 0) {
+        setShowWalletAddress(false);
+      }
     }
   };
 
@@ -369,6 +467,7 @@ const handleFormSubmit = async (formData) => {
       };
 
       setIsCreating(true);
+      setMintingError(null);
 
       const metadataURI = await nftMetadataService.uploadMetadata(formData, selectedNFT.id, nftTemplates);
       mintData.metadataURI = metadataURI;
@@ -383,8 +482,8 @@ const handleFormSubmit = async (formData) => {
           alert(`Failed to create NFT: ${result.error}`);
       }
   } catch (error) {
+      setMintingError(error.message);
       console.error('Error in form submission:', error);
-      alert(`Error in form submission: ${error.message}`);
   } finally {
       setIsCreating(false);
   }
@@ -397,6 +496,11 @@ const handleFormSubmit = async (formData) => {
   };
 
   const showBackButton = currentStep > 0 && currentStep < 3;
+
+  const handleStart = () => {
+    setIsStarted(true);
+    setShowWalletAddress(false);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-t from-black to-gray-900 p-8 relative overflow-hidden">
@@ -417,7 +521,58 @@ const handleFormSubmit = async (formData) => {
         }}
       />
 
-      {isCreating && <LoadingScreen status="Creating your time-locked NFT..." />}
+      {/* Wallet Connection Button */}
+      <div className="fixed top-4 right-4 z-50">
+        {(showWalletAddress || currentStep === 0) && walletAddress && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gray-800/50 backdrop-blur-sm border border-gray-700/50 
+                       rounded-xl p-3 flex items-center gap-3"
+          >
+            <div className="w-2 h-2 rounded-full bg-green-500" />
+            <span className="font-mono text-sm text-gray-300">
+              {`${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`}
+            </span>
+            <button
+              onClick={handleDisconnect}
+              className="ml-2 text-gray-400 hover:text-gray-300"
+            >
+              <motion.div
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+              >
+                ✕
+              </motion.div>
+            </button>
+          </motion.div>
+        )}
+        
+        {(showWalletAddress || currentStep === 0) && !walletAddress && (
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleConnectWallet}
+            disabled={isConnecting}
+            className="bg-gradient-to-r from-blue-500 to-teal-500 text-white px-4 py-2 
+                       rounded-xl text-sm font-medium flex items-center gap-2
+                       hover:from-blue-600 hover:to-teal-600 shadow-lg 
+                       hover:shadow-blue-500/25 disabled:opacity-50"
+          >
+            <Wallet className="w-4 h-4" />
+            {isConnecting ? "Connecting..." : "Connect Wallet"}
+          </motion.button>
+        )}
+      </div>
+
+      {isCreating && (
+        <LoadingScreen 
+          status="Creating your time-locked NFT..." 
+          state={mintingError ? "error" : "loading"}
+          error={mintingError}
+          onRetry={handleFormSubmit}
+        />
+      )}
       
       <div className="relative max-w-6xl mx-auto">
         <BackButton onClick={handlePrevStep} show={showBackButton} />
@@ -426,7 +581,10 @@ const handleFormSubmit = async (formData) => {
         
         <AnimatePresence mode="wait">
           {showMyNFTs ? (
-            <MyNFTs onClose={() => setShowMyNFTs(false)} />
+            <MyNFTs 
+              onClose={() => setShowMyNFTs(false)} 
+              walletAddress={walletAddress}
+            />
           ) : (
             <StepContent
               step={currentStep}
@@ -438,6 +596,7 @@ const handleFormSubmit = async (formData) => {
               onReset={handleReset}
               onViewNFTs={() => setShowMyNFTs(true)}
               walletAddress={walletAddress}
+              setWalletAddress={setWalletAddress}
             />
           )}
         </AnimatePresence>
@@ -474,6 +633,16 @@ const handleFormSubmit = async (formData) => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {walletError && (
+        <motion.p
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-red-500 mt-4"
+        >
+          {walletError}
+        </motion.p>
+      )}
     </div>
   );
 };

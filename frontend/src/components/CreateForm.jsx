@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import TimeInput from './TimeInput';
 import { validateFormData } from '../services/nftService';
 import { Send } from 'lucide-react';
+import { getUnlockTimestamp } from '../utils/timeUtils';
 
-const CreateForm = ({ selectedNFT, onSubmit }) => {
+const CreateForm = ({ selectedNFT, onSubmit, walletAddress }) => {
     const [message, setMessage] = useState('');
     const [days, setDays] = useState(0);
     const [hours, setHours] = useState(0);
     const [minutes, setMinutes] = useState(0);
-    const [recipientAddress, setRecipientAddress] = useState('');
+    const [recipientAddress, setRecipientAddress] = useState(walletAddress || '');
     const [errors, setErrors] = useState({});
     const [isLoading, setIsLoading] = useState(false);
 
@@ -24,33 +25,30 @@ const CreateForm = ({ selectedNFT, onSubmit }) => {
     const handleSubmit = async (event) => {
         event.preventDefault();
 
-        // Define formData
+        if (days === 0 && hours === 0 && minutes === 0) {
+            setErrors({ ...errors, time: 'Lock time must be greater than 0' });
+            return;
+        }
+
         const formData = {
             message: message.trim(),
             days: parseInt(days),
             hours: parseInt(hours),
             minutes: parseInt(minutes),
-            recipient: recipientAddress.trim()
+            recipient: recipientAddress.trim(),
+            unlockTimestamp: getUnlockTimestamp(days, hours, minutes)
         };
 
         try {
-            // Validate form data
             const validation = validateFormData(formData);
             if (!validation.isValid) {
-                console.error('Validation errors:', validation.errors);
-                // Here you can display errors to the user
                 setErrors(validation.errors);
                 return;
             }
 
-            // Log for debugging
-            console.log('Submitting form data:', formData);
-
-            // Call parent submit handler
             await onSubmit(formData);
         } catch (error) {
             console.error('Error in form submission:', error);
-            // Handle error (e.g., show error message to user)
         }
     };
 

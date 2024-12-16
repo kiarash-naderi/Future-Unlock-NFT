@@ -26,9 +26,9 @@ class NFTMetadataService {
 
             // محاسبه زمان آنلاک
             const unlockDate = new Date();
-            unlockDate.setDate(unlockDate.getDate() + formData.days);
-            unlockDate.setHours(unlockDate.getHours() + formData.hours);
             unlockDate.setMinutes(unlockDate.getMinutes() + formData.minutes);
+            unlockDate.setHours(unlockDate.getHours() + formData.hours);
+            unlockDate.setDate(unlockDate.getDate() + formData.days);
 
             const baseMetadata = {
                 name: "TimeLockedNFT",
