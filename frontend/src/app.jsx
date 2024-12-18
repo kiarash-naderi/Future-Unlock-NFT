@@ -468,6 +468,8 @@ const handleFormSubmit = async (formData) => {
 
       setIsCreating(true);
       setMintingError(null);
+      console.log('Form Data:', JSON.stringify(formData, null, 2));
+
 
       const metadataURI = await nftMetadataService.uploadMetadata(formData, selectedNFT.id, nftTemplates);
       mintData.metadataURI = metadataURI;

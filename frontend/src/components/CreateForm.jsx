@@ -25,6 +25,7 @@ const CreateForm = ({ selectedNFT, onSubmit, walletAddress }) => {
     const handleSubmit = async (event) => {
         event.preventDefault();
 
+        // Validate minimum time
         if (days === 0 && hours === 0 && minutes === 0) {
             setErrors({ ...errors, time: 'Lock time must be greater than 0' });
             return;
@@ -32,12 +33,22 @@ const CreateForm = ({ selectedNFT, onSubmit, walletAddress }) => {
 
         const formData = {
             message: message.trim(),
+            lockDays: parseInt(days),
+            lockHours: parseInt(hours),
+            lockMinutes: parseInt(minutes),
+            recipient: recipientAddress.trim(),
+            // Make sure these are properly converted to integers
             days: parseInt(days),
             hours: parseInt(hours),
-            minutes: parseInt(minutes),
-            recipient: recipientAddress.trim(),
-            unlockTimestamp: getUnlockTimestamp(days, hours, minutes)
+            minutes: parseInt(minutes)
         };
+
+        console.log('Submitting form with time values:', {
+            days: formData.days,
+            hours: formData.hours,
+            minutes: formData.minutes,
+            totalMinutes: (formData.days * 24 * 60) + (formData.hours * 60) + formData.minutes
+        });
 
         try {
             const validation = validateFormData(formData);
@@ -49,6 +60,7 @@ const CreateForm = ({ selectedNFT, onSubmit, walletAddress }) => {
             await onSubmit(formData);
         } catch (error) {
             console.error('Error in form submission:', error);
+            setErrors({ ...errors, submit: error.message });
         }
     };
 
@@ -61,7 +73,7 @@ const CreateForm = ({ selectedNFT, onSubmit, walletAddress }) => {
                     value={message}
                     onChange={(e) => {
                         setMessage(e.target.value);
-                        if (errors.message) setErrors({...errors, message: null});
+                        if (errors.message) setErrors({ ...errors, message: null });
                     }}
                     className={`w-full p-4 bg-gray-900 border rounded-xl text-white 
                              focus:ring-2 focus:ring-blue-500 focus:border-transparent 
@@ -75,7 +87,7 @@ const CreateForm = ({ selectedNFT, onSubmit, walletAddress }) => {
             </div>
 
             {/* Time Input */}
-            <TimeInput 
+            <TimeInput
                 days={days}
                 hours={hours}
                 minutes={minutes}
@@ -91,7 +103,7 @@ const CreateForm = ({ selectedNFT, onSubmit, walletAddress }) => {
                     value={recipientAddress}
                     onChange={(e) => {
                         setRecipientAddress(e.target.value);
-                        if (errors.recipient) setErrors({...errors, recipient: null});
+                        if (errors.recipient) setErrors({ ...errors, recipient: null });
                     }}
                     className={`w-full p-4 bg-gray-900 border rounded-xl text-white 
                              focus:ring-2 focus:ring-blue-500 focus:border-transparent 
@@ -111,8 +123,8 @@ const CreateForm = ({ selectedNFT, onSubmit, walletAddress }) => {
             )}
 
             {/* Submit Button */}
-            <button 
-                type="submit" 
+            <button
+                type="submit"
                 disabled={isLoading}
                 className={`w-full bg-blue-600 text-white p-4 rounded-xl
                          flex items-center justify-center gap-2

@@ -74,30 +74,26 @@ const createTimeLockNFT = async (formData) => {
         );
         
         console.log('Metadata uploaded, URI:', metadataURI);
-        
-        const now = new Date();
-        now.setMinutes(now.getMinutes() + formData.lockMinutes);
-        now.setHours(now.getHours() + formData.lockHours);
-        now.setDate(now.getDate() + formData.lockDays);
 
-        const unlockTime = Math.floor(now.getTime() / 1000);
+        // Convert time parameters to integers explicitly
+        const lockDays = parseInt(formData.lockDays) || 0;
+        const lockHours = parseInt(formData.lockHours) || 0;
+        const lockMinutes = parseInt(formData.lockMinutes) || 0;
 
-        console.log('Time details:', {
-            input: {
-                days: formData.lockDays,
-                hours: formData.lockHours,
-                minutes: formData.lockMinutes
-            },
-            unlockTime,
-            expectedUnlock: new Date(unlockTime * 1000).toLocaleString()
+        // Log the time parameters being sent to the contract
+        console.log('Time parameters:', {
+            days: lockDays,
+            hours: lockHours,
+            minutes: lockMinutes,
+            totalMinutes: (lockDays * 24 * 60) + (lockHours * 60) + lockMinutes
         });
         
         const tx = await contract.mintNFT({
             recipient: formData.recipient,
             content: formData.content,
-            lockDays: formData.lockDays,
-            lockHours: formData.lockHours,
-            lockMinutes: formData.lockMinutes,
+            lockDays: lockDays,
+            lockHours: lockHours,
+            lockMinutes: lockMinutes,
             templateId: formData.templateId,
             metadataURI: metadataURI,
             title: formData.title,
@@ -123,16 +119,36 @@ const createTimeLockNFT = async (formData) => {
             }
         });
 
-        const tokenId = mintEvent ? contract.interface.parseLog({
+        if (!mintEvent) {
+            throw new Error('NFT Minted event not found in transaction logs');
+        }
+
+        const parsedLog = contract.interface.parseLog({
             topics: mintEvent.topics,
             data: mintEvent.data
-        }).args.tokenId.toString() : null;
+        });
+
+        const tokenId = parsedLog.args.tokenId.toString();
+        const unlockTime = parsedLog.args.unlockTime.toString();
+
+        // Verify the unlock time is correct
+        console.log('NFT Created:', {
+            tokenId,
+            unlockTime,
+            expectedUnlock: new Date(Number(unlockTime) * 1000).toISOString(),
+            intendedDuration: {
+                days: lockDays,
+                hours: lockHours,
+                minutes: lockMinutes
+            }
+        });
 
         return {
             success: true,
             transactionHash: receipt.hash,
             tokenId,
-            metadataURI
+            metadataURI,
+            unlockTime
         };
     } catch (error) {
         console.error('Error in createTimeLockNFT:', error);

@@ -1,5 +1,5 @@
-// services/nftMetadataService.js
 import axios from 'axios';
+import { getUnlockTimestamp } from '../utils/timeUtils';
 
 class NFTMetadataService {
     constructor() {
@@ -24,11 +24,22 @@ class NFTMetadataService {
             const ipfsHash = template.image.split('/').pop();
             const ipfsImageUrl = `ipfs://${ipfsHash}`;
 
-            // محاسبه زمان آنلاک
-            const unlockDate = new Date();
-            unlockDate.setMinutes(unlockDate.getMinutes() + formData.minutes);
-            unlockDate.setHours(unlockDate.getHours() + formData.hours);
-            unlockDate.setDate(unlockDate.getDate() + formData.days);
+            // Calculate unlock timestamp using the same method as the contract
+            const unlockTimestamp = getUnlockTimestamp(
+                formData.days || formData.lockDays || 0,
+                formData.hours || formData.lockHours || 0,
+                formData.minutes || formData.lockMinutes || 0
+            );
+
+            // Convert to milliseconds for JavaScript Date
+            const unlockDate = new Date(unlockTimestamp * 1000);
+
+            console.log('Metadata unlock time calculation:', {
+                formData,
+                calculatedTimestamp: unlockTimestamp,
+                unlockDate: unlockDate.toLocaleString(),
+                dateValid: !isNaN(unlockDate.getTime())
+            });
 
             const baseMetadata = {
                 name: "TimeLockedNFT",
@@ -47,7 +58,7 @@ class NFTMetadataService {
                     }
                 ],
                 properties: {
-                    unlockTime: unlockDate.getTime(),
+                    unlockTime: unlockTimestamp * 1000, // Store as milliseconds for JavaScript compatibility
                     files: [
                         {
                             uri: ipfsImageUrl,
