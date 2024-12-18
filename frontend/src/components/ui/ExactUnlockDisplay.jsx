@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, Clock, Unlock } from 'lucide-react';
 
-const TIME_BIAS_SECONDS = 300; // Bias to add 5 minutes (300 seconds)
+// const TIME_BIAS_SECONDS = 300; // Bias to add 5 minutes (300 seconds)
 
 const ExactUnlockDisplay = ({ nft, onUnlock }) => {
     // State to track whether the NFT can be unlocked
     const [canUnlock, setCanUnlock] = useState(false);
 
     useEffect(() => {
-        const unlockTime = Number(nft.unlockTimestamp) + TIME_BIAS_SECONDS;
+        const unlockTime = Number(nft.unlockTimestamp);
 
         const updateCanUnlock = () => {
             const now = Math.floor(Date.now() / 1000);
@@ -25,7 +25,7 @@ const ExactUnlockDisplay = ({ nft, onUnlock }) => {
     }, [nft.unlockTimestamp]);
 
     // Convert unlock timestamp to formatted date and time
-    const unlockTime = Number(nft.unlockTimestamp) + TIME_BIAS_SECONDS;
+    const unlockTime = Number(nft.unlockTimestamp);
     const unlockDate = new Date(unlockTime * 1000);
 
     const formattedTime = unlockDate.toLocaleTimeString('en-US', {
