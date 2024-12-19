@@ -1,5 +1,5 @@
 {
-  "name": "future-unlock-nft",
+  "name": "time-locked-nft",
   "version": "1.0.0",
   "description": "A time-locked NFT project",
   "main": "index.js",

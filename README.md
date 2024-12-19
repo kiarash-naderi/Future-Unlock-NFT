@@ -1,4 +1,4 @@
-# Future-Unlock NFT
+# Time-Locked NFT
 
 ## Quick Start Guide 🚀
 
@@ -10,7 +10,7 @@
 ### Installation Steps
 1. Clone the project:
 ```bash
-git clone [https://github.com/kiarash-naderi/Future-Unlock-NFT.git]
+git clone [https://github.com/kiarash-naderi/time-locked-nft.git]
 ```
 
 2. Install dependencies:
