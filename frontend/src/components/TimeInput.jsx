@@ -2,7 +2,6 @@ import React, { useRef } from 'react';
 import { Clock } from 'lucide-react';
 
 const TimeInput = ({ days, hours, minutes, onChange }) => {
-  // همون منطق قبلی که کار می‌کرد
   const inputRefs = {
     days: useRef(days.toString()),
     hours: useRef(hours.toString()),

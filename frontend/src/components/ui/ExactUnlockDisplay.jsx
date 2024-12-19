@@ -1,78 +1,80 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Calendar, Clock, Unlock } from 'lucide-react';
-
-// const TIME_BIAS_SECONDS = 300; // Bias to add 5 minutes (300 seconds)
+import { Clock } from 'lucide-react';
 
 const ExactUnlockDisplay = ({ nft, onUnlock }) => {
-    // State to track whether the NFT can be unlocked
-    const [canUnlock, setCanUnlock] = useState(false);
+    const [timeLeft, setTimeLeft] = useState({
+        days: 0,
+        hours: 0,
+        minutes: 0,
+        seconds: 0
+    });
 
     useEffect(() => {
-        const unlockTime = Number(nft.unlockTimestamp);
-
-        const updateCanUnlock = () => {
+        const calculateTimeLeft = () => {
             const now = Math.floor(Date.now() / 1000);
-            setCanUnlock(now >= unlockTime);
+            const unlockTime = Number(nft.unlockTimestamp);
+            const difference = unlockTime - now;
+
+            if (difference <= 0 || nft.isUnlocked) {
+                return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+            }
+
+            return {
+                days: Math.floor(difference / 86400),
+                hours: Math.floor((difference % 86400) / 3600),
+                minutes: Math.floor((difference % 3600) / 60),
+                seconds: Math.floor(difference % 60)
+            };
         };
 
-        // Update immediately and set an interval
-        updateCanUnlock();
-        const interval = setInterval(updateCanUnlock, 1000); // Update every second
+        setTimeLeft(calculateTimeLeft());
+        const timer = setInterval(() => {
+            setTimeLeft(calculateTimeLeft());
+        }, 1000);
 
-        // Clean up the interval when the component unmounts
-        return () => clearInterval(interval);
-    }, [nft.unlockTimestamp]);
+        return () => clearInterval(timer);
+    }, [nft.unlockTimestamp, nft.isUnlocked]);
 
-    // Convert unlock timestamp to formatted date and time
-    const unlockTime = Number(nft.unlockTimestamp);
-    const unlockDate = new Date(unlockTime * 1000);
+    const now = Math.floor(Date.now() / 1000);
+    const canUnlock = now >= Number(nft.unlockTimestamp);
 
-    const formattedTime = unlockDate.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-    });
-
-    const formattedDate = unlockDate.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-    });
+    if (canUnlock) {
+        return (
+            <button
+                onClick={() => onUnlock(nft.tokenId)}
+                className="w-full bg-blue-600 text-white py-2.5 px-4 rounded-lg
+                          flex items-center justify-center gap-2"
+            >
+                <span>🔓 Unlock Now</span>
+            </button>
+        );
+    }
 
     return (
-        <div className="space-y-4">
-            {canUnlock && !nft.isUnlocked ? (
-                <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => onUnlock(nft.tokenId)}
-                    className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 
-                             hover:from-blue-700 hover:to-blue-800
-                             text-white rounded-lg transition-all
-                             font-medium flex items-center justify-center gap-2
-                             shadow-lg shadow-blue-700/30"
-                >
-                    <Unlock className="w-5 h-5" />
-                    Unlock Now
-                </motion.button>
-            ) : (
-                <div className="bg-gray-800/40 backdrop-blur-sm rounded-lg p-4">
-                    <div className="flex items-center justify-center gap-3">
-                        <div className="flex items-center gap-1.5 text-blue-400/80">
-                            <Calendar className="w-4 h-4" />
-                            <span className="text-sm">{formattedDate}</span>
-                        </div>
-                        <div className="w-px h-4 bg-gray-700" />
-                        <div className="flex items-center gap-1.5 text-teal-400/80">
-                            <Clock className="w-4 h-4" />
-                            <span className="text-sm">{formattedTime}</span>
-                        </div>
-                    </div>
-                </div>
-            )}
+        <div className="space-y-2">
+            <div className="flex items-center gap-1.5 text-blue-400/80 text-[13px]">
+                <Clock className="w-3.5 h-3.5" />
+                <span>Time until unlock</span>
+            </div>
+            <div className="flex justify-between px-1">
+                <TimeBlock value={timeLeft.days} label="Days" />
+                <TimeBlock value={timeLeft.hours} label="Hours" />
+                <TimeBlock value={timeLeft.minutes} label="Mins" />
+                <TimeBlock value={timeLeft.seconds} label="Secs" />
+            </div>
         </div>
     );
 };
+
+const TimeBlock = ({ value, label }) => (
+    <div className="flex flex-col items-center">
+        <span className="text-[15px] font-medium text-blue-400">
+            {String(value).padStart(2, '0')}
+        </span>
+        <span className="text-[11px] text-gray-500 mt-0.5">
+            {label}
+        </span>
+    </div>
+);
 
 export default ExactUnlockDisplay;

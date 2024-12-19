@@ -70,14 +70,14 @@ const MyNFTs = ({ onClose, walletAddress }) => {
     loadUserNFTs();
   }, []);
 
-  // اضافه کردن لیسنر برای Transfer ها
+
   useEffect(() => {
     const setupTransferListener = async () => {
       try {
         const contract = await getContract();
         
         contract.on('Transfer', (from, to, tokenId) => {
-          // اگر کاربر فعلی درگیر تراکنش بوده، لیست رو آپدیت کن
+
           if (from.toLowerCase() === walletAddress?.toLowerCase() || 
             to.toLowerCase() === walletAddress?.toLowerCase()) {
             loadUserNFTs();

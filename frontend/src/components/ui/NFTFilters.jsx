@@ -4,7 +4,7 @@ import { Search, Filter } from 'lucide-react';
 
 const NFTFilters = ({ onFilterChange, onSearch, currentFilter }) => {
   const handleSearch = (value) => {
-    // تبدیل ورودی به lowercase برای جستجوی بهتر
+
     const searchTerm = value.toLowerCase();
     onSearch(searchTerm);
   };
